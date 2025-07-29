@@ -8,19 +8,23 @@ This script provides commands to:
 3. Upgrade to the latest migration
 4. Downgrade to a specific migration
 5. Create a new migration
+6. Reset and initialize the database with default data
 
 Usage:
-    python db_manage.py init     # Initialize the database with all tables
-    python db_manage.py reset    # Reset the database and recreate all tables
-    python db_manage.py upgrade  # Apply all unapplied migrations
-    python db_manage.py downgrade [revision]  # Downgrade to a specific revision
-    python db_manage.py revision "message"    # Create a new migration
+    python db_manage.py init                     # Initialize the database with all tables
+    python db_manage.py reset                    # Reset the database and recreate all tables
+    python db_manage.py reset-with-data          # Reset the database and populate with default data
+    python db_manage.py init-data                # Initialize database with default data only
+    python db_manage.py upgrade                  # Apply all unapplied migrations
+    python db_manage.py downgrade [revision]     # Downgrade to a specific revision
+    python db_manage.py revision "message"       # Create a new migration
 """
 
 import os
 import sys
 import argparse
 import subprocess
+import datetime
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import ProgrammingError
@@ -178,6 +182,122 @@ def create_revision(message):
         print(f"Error creating migration: {e}")
         return False
 
+def initialize_data():
+    """Initialize database with default data (admin user, sample customer, and product)"""
+    try:
+        print("Initializing database with default data...")
+        
+        # Import the required modules and models
+        from app import app, db
+        from models import User, Customer, Product, Category, Company
+        from werkzeug.security import generate_password_hash
+        
+        with app.app_context():
+            # Dispose of the engine's connection pool.
+            # This is critical to ensure the session gets a fresh connection
+            # and sees the empty database after a reset.
+            print("Disposing database engine connection pool to ensure a fresh start.")
+            db.engine.dispose()
+
+            # Create admin user if it doesn't exist
+            admin = User.query.filter_by(username='admin').first()
+            if not admin:
+                # Explicitly create the password hash
+                hashed_password = generate_password_hash('admin123')
+                
+                admin = User(
+                    username='admin',
+                    email='admin@example.com',
+                    password_hash=hashed_password,  # Pass the hash directly
+                    role='admin',
+                    is_active=True, 
+                    created_at=datetime.datetime.now(),
+                    updated_at=datetime.datetime.now()
+                )
+                db.session.add(admin)
+                db.session.commit()
+                print("Created default admin user (username: admin, password: admin123)")
+            else:
+                print("Admin user already exists, skipping creation")
+            
+            # Create sample company if none exist
+            company_count = Company.query.count()
+            if company_count == 0:
+                sample_company = Company(
+                    name="My Awesome Company",
+                    address="456 Business Avenue, Bangalore, Karnataka",
+                    gst_number="29AABCA1234A1Z5",  # Sample GST for Karnataka
+                    tan_number="BLRA12345B",
+                    state_code="29",
+                    created_at=datetime.datetime.now(),
+                    updated_at=datetime.datetime.now()
+                )
+                db.session.add(sample_company)
+                db.session.commit()
+                print("Created sample company: My Awesome Company")
+            else:
+                print("Company config already exists, skipping sample company creation")
+
+            # Create sample customer if none exist
+            customer_count = Customer.query.count()
+            if customer_count == 0:
+                sample_customer = Customer(
+                    name="Sample Business Pvt Ltd",
+                    gst_number="27AABCS1234A1Z5",  # Sample GST number for Maharashtra
+                    address="123 Main Street, Mumbai",
+                    state_code="27",
+                    phone="9876543210",
+                    email="contact@samplebusiness.com",
+                    created_at=datetime.datetime.now(),
+                    updated_at=datetime.datetime.now()
+                )
+                db.session.add(sample_customer)
+                db.session.commit()
+                print("Created sample customer: Sample Business Pvt Ltd")
+            else:
+                print("Customers already exist, skipping sample customer creation")
+            
+            # Create sample product if none exist
+            product_count = Product.query.count()
+            if product_count == 0:
+                # Create default category if needed
+                category = Category.query.filter_by(category_name="General").first()
+                if not category:
+                    category = Category(
+                        category_name="General",
+                        created_at=datetime.datetime.now(),
+                        updated_at=datetime.datetime.now()
+                    )
+                    db.session.add(category)
+                    db.session.commit()
+                    print("Created default 'General' category")
+                
+                # Create a sample product
+                sample_product = Product(
+                    name="Sample Product",
+                    description="This is a sample product for demonstration",
+                    price=1000.00,
+                    hsn_code="8471",  # Sample HSN code for computer equipment
+                    gst_rate=18.0,    # 18% GST rate
+                    cgst_rate=9.0,    # 9% CGST rate
+                    sgst_rate=9.0,    # 9% SGST rate
+                    unit="Pcs",
+                    category_id=category.id,
+                    created_at=datetime.datetime.now(),
+                    updated_at=datetime.datetime.now()
+                )
+                db.session.add(sample_product)
+                db.session.commit()
+                print("Created sample product: Sample Product (₹1000, 18% GST)")
+            else:
+                print("Products already exist, skipping sample product creation")
+            
+            print("Database initialization with default data completed successfully!")
+            return True
+    except Exception as e:
+        print(f"Error initializing database with default data: {e}")
+        return False
+
 def main():
     parser = argparse.ArgumentParser(description="Database Management Tool")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
@@ -187,6 +307,12 @@ def main():
     
     # Reset command
     reset_parser = subparsers.add_parser("reset", help="Reset database and recreate all tables")
+    
+    # Reset with data command
+    reset_with_data_parser = subparsers.add_parser("reset-with-data", help="Reset database and populate with default data")
+    
+    # Init data command
+    init_data_parser = subparsers.add_parser("init-data", help="Initialize database with default data only")
     
     # Upgrade command
     upgrade_parser = subparsers.add_parser("upgrade", help="Apply all unapplied migrations")
@@ -205,6 +331,11 @@ def main():
         init_database()
     elif args.command == "reset":
         reset_database()
+    elif args.command == "reset-with-data":
+        if reset_database():
+            initialize_data()
+    elif args.command == "init-data":
+        initialize_data()
     elif args.command == "upgrade":
         upgrade_database()
     elif args.command == "downgrade":

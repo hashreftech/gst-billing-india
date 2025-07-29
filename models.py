@@ -150,7 +150,9 @@ class Product(db.Model):
     description = db.Column(Text)
     price = db.Column(db.Numeric(10, 2), nullable=False)
     hsn_code = db.Column(db.String(10), nullable=False)
-    gst_rate = db.Column(db.Numeric(5, 2), nullable=False, default=18.0)
+    gst_rate = db.Column(db.Numeric(5, 2), nullable=False, default=18.0)  # Total GST rate (for backward compatibility)
+    cgst_rate = db.Column(db.Numeric(5, 2), nullable=False, default=9.0)  # CGST component
+    sgst_rate = db.Column(db.Numeric(5, 2), nullable=False, default=9.0)  # SGST component
     unit = db.Column(db.String(20), default='Nos')
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'))
     custom_fields = db.Column(JSON, default=dict)
@@ -232,6 +234,8 @@ class BillItem(db.Model):
     discount_amount = db.Column(db.Numeric(12, 2), nullable=True)  # Legacy column
     taxable_amount = db.Column(db.Numeric(12, 2), nullable=True)  # Legacy column
     gst_rate = db.Column(db.Numeric(5, 2), nullable=False)
+    cgst_rate = db.Column(db.Numeric(5, 2), nullable=False, default=0)  # CGST rate component
+    sgst_rate = db.Column(db.Numeric(5, 2), nullable=False, default=0)  # SGST rate component
     gst_amount = db.Column(db.Numeric(12, 2), nullable=True)  # Legacy column
     cgst_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     sgst_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)

@@ -4,15 +4,14 @@
 
 {% block content %}
 <div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6 text-center">
-            <h1 class="display-1 text-danger">500</h1>
-            <h2>Internal Server Error</h2>
-            <p class="lead">Something went wrong on our end. We're working to fix it.</p>
-            <a href="{{ url_for('index') }}" class="btn btn-primary">
-                <i class="fas fa-home"></i> Go Home
-            </a>
-        </div>
+    <div class="jumbotron text-center">
+        <h1 class="display-4">500 - Internal Server Error</h1>
+        <p class="lead">Something went wrong on our end. Please try again later.</p>
+        <hr class="my-4">
+        <p>If the problem persists, please contact support.</p>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+            <i class="fas fa-home"></i> Go Home
+        </a>
     </div>
 </div>
 {% endblock %}

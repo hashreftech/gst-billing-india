@@ -141,14 +141,15 @@
                 <table class="table table-bordered" id="itemsTable">
                     <thead>
                         <tr>
-                            <th style="width: 25%">Product</th>
-                            <th style="width: 15%">HSN</th>
-                            <th style="width: 10%">Qty</th>
-                            <th style="width: 8%">Unit</th>
-                            <th style="width: 12%">Rate</th>
-                            <th style="width: 8%">GST%</th>
+                            <th style="width: 22%">Product</th>
+                            <th style="width: 12%">HSN</th>
+                            <th style="width: 8%">Qty</th>
+                            <th style="width: 6%">Unit</th>
+                            <th style="width: 10%">Rate</th>
+                            <th style="width: 6%">CGST%</th>
+                            <th style="width: 6%">SGST%</th>
                             <th style="width: 12%">Amount</th>
-                            <th style="width: 10%">Actions</th>
+                            <th style="width: 8%">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="itemsTableBody">
@@ -397,7 +398,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load existing items if in edit mode or duplicating, otherwise add first item row
     {% if edit_mode and bill.items %}
     {% for item in bill.items %}
-    loadExistingItem({{ item.product_id if item.product_id else 0 }}, {{ item.quantity if item.quantity else 1 }}, '{{ item.product_name|replace("'", "\\'") if item.product_name else "" }}', '{{ item.hsn_code if item.hsn_code else "" }}', '{{ item.unit if item.unit else "" }}', {{ item.rate if item.rate else 0 }}, {{ item.gst_rate if item.gst_rate else 0 }}, '{{ item.description|replace("'", "\\'") if item.description else "" }}');
+    loadExistingItem(
+        {{ item.product_id if item.product_id else 0 }}, 
+        {{ item.quantity if item.quantity else 1 }}, 
+        '{{ item.product_name|replace("'", "\\'") if item.product_name else "" }}', 
+        '{{ item.hsn_code if item.hsn_code else "" }}', 
+        '{{ item.unit if item.unit else "" }}', 
+        {{ item.rate if item.rate else 0 }}, 
+        {{ item.gst_rate if item.gst_rate else 0 }}, 
+        '{{ item.description|replace("'", "\\'") if item.description else "" }}',
+        {{ item.cgst_rate if item.cgst_rate else item.gst_rate/2 }},
+        {{ item.sgst_rate if item.sgst_rate else item.gst_rate/2 }}
+    );
     {% endfor %}
     // Calculate totals after loading all items
     setTimeout(() => {
@@ -405,7 +417,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 200);
     {% elif duplicate_bill and duplicate_bill.items %}
     {% for item in duplicate_bill.items %}
-    loadExistingItem({{ item.product_id if item.product_id else 0 }}, {{ item.quantity if item.quantity else 1 }}, '{{ item.product_name|replace("'", "\\'") if item.product_name else "" }}', '{{ item.hsn_code if item.hsn_code else "" }}', '{{ item.unit if item.unit else "" }}', {{ item.rate if item.rate else 0 }}, {{ item.gst_rate if item.gst_rate else 0 }}, '{{ item.description|replace("'", "\\'") if item.description else "" }}');
+    loadExistingItem(
+        {{ item.product_id if item.product_id else 0 }}, 
+        {{ item.quantity if item.quantity else 1 }}, 
+        '{{ item.product_name|replace("'", "\\'") if item.product_name else "" }}', 
+        '{{ item.hsn_code if item.hsn_code else "" }}', 
+        '{{ item.unit if item.unit else "" }}', 
+        {{ item.rate if item.rate else 0 }}, 
+        {{ item.gst_rate if item.gst_rate else 0 }}, 
+        '{{ item.description|replace("'", "\\'") if item.description else "" }}',
+        {{ item.cgst_rate if item.cgst_rate else item.gst_rate/2 }},
+        {{ item.sgst_rate if item.sgst_rate else item.gst_rate/2 }}
+    );
     {% endfor %}
     // Calculate totals after loading duplicate items
     setTimeout(() => {
@@ -430,7 +453,15 @@ function addNewItem() {
     let productOptions = '<option value="">Select Product</option>';
     if (typeof products !== 'undefined') {
         products.forEach(product => {
-            productOptions += `<option value="${product.id}" data-name="${product.name}" data-hsn="${product.hsn_code}" data-unit="${product.unit}" data-rate="${product.price}" data-gst="${product.gst_rate}" data-description="${product.description || ''}">${product.name} - ₹${product.price}</option>`;
+            productOptions += `<option value="${product.id}" 
+                data-name="${product.name}" 
+                data-hsn="${product.hsn_code}" 
+                data-unit="${product.unit}" 
+                data-rate="${product.price}" 
+                data-gst="${product.gst_rate}" 
+                data-cgst="${product.cgst_rate || product.gst_rate/2}" 
+                data-sgst="${product.sgst_rate || product.gst_rate/2}" 
+                data-description="${product.description || ''}">${product.name} - ₹${product.price}</option>`;
         });
     }
     
@@ -463,8 +494,13 @@ function addNewItem() {
             <input type="hidden" name="items-${itemCounter-1}-rate" class="rate-field">
         </td>
         <td>
-            <span class="gst-display">0%</span>
-            <input type="hidden" name="items-${itemCounter-1}-gst_rate" class="gst-field">
+            <span class="cgst-display">0%</span>
+            <input type="hidden" name="items-${itemCounter-1}-cgst_rate" class="cgst-field" value="0">
+        </td>
+        <td>
+            <span class="sgst-display">0%</span>
+            <input type="hidden" name="items-${itemCounter-1}-sgst_rate" class="sgst-field" value="0">
+            <input type="hidden" name="items-${itemCounter-1}-gst_rate" class="gst-field" value="0">
         </td>
         <td>
             <span class="item-amount fw-bold">₹0.00</span>
@@ -490,13 +526,16 @@ function updateItemFromProduct(selectElement, itemId) {
         row.querySelector('.hsn-display').textContent = '-';
         row.querySelector('.unit-display').textContent = '-';
         row.querySelector('.rate-display').textContent = '₹0.00';
-        row.querySelector('.gst-display').textContent = '0%';
+        row.querySelector('.cgst-display').textContent = '0%';
+        row.querySelector('.sgst-display').textContent = '0%';
         row.querySelector('.product-details').textContent = '';
         
         // Clear hidden fields
         row.querySelector('.hsn-field').value = '';
         row.querySelector('.unit-field').value = '';
         row.querySelector('.rate-field').value = '';
+        row.querySelector('.cgst-field').value = '';
+        row.querySelector('.sgst-field').value = '';
         row.querySelector('.gst-field').value = '';
         row.querySelector('.product-name-field').value = '';
         row.querySelector('.description-field').value = '';
@@ -510,6 +549,8 @@ function updateItemFromProduct(selectElement, itemId) {
     const unit = selectedOption.dataset.unit || 'Nos';
     const rate = parseFloat(selectedOption.dataset.rate) || 0;
     const gstRate = parseFloat(selectedOption.dataset.gst) || 18;
+    const cgstRate = parseFloat(selectedOption.dataset.cgst) || (gstRate / 2);
+    const sgstRate = parseFloat(selectedOption.dataset.sgst) || (gstRate / 2);
     const description = selectedOption.dataset.description || '';
     const productName = selectedOption.dataset.name || selectedOption.textContent.split(' - ₹')[0];
     
@@ -517,13 +558,16 @@ function updateItemFromProduct(selectElement, itemId) {
     row.querySelector('.hsn-display').textContent = hsn;
     row.querySelector('.unit-display').textContent = unit;
     row.querySelector('.rate-display').textContent = `₹${rate.toFixed(2)}`;
-    row.querySelector('.gst-display').textContent = `${gstRate}%`;
+    row.querySelector('.cgst-display').textContent = `${cgstRate}%`;
+    row.querySelector('.sgst-display').textContent = `${sgstRate}%`;
     row.querySelector('.product-details').textContent = description;
     
     // Update hidden form fields
     row.querySelector('.hsn-field').value = hsn;
     row.querySelector('.unit-field').value = unit;
     row.querySelector('.rate-field').value = rate;
+    row.querySelector('.cgst-field').value = cgstRate;
+    row.querySelector('.sgst-field').value = sgstRate;
     row.querySelector('.gst-field').value = gstRate;
     row.querySelector('.product-name-field').value = productName;
     row.querySelector('.description-field').value = description;
@@ -532,18 +576,30 @@ function updateItemFromProduct(selectElement, itemId) {
     calculateItemAmount(itemId);
 }
 
-function loadExistingItem(productId, quantity, productName, hsnCode, unit, rate, gstRate, description) {
+function loadExistingItem(productId, quantity, productName, hsnCode, unit, rate, gstRate, description, cgstRate, sgstRate) {
     itemCounter++;
     const tbody = document.getElementById('itemsTableBody');
     const row = document.createElement('tr');
     row.id = `item-row-${itemCounter}`;
+    
+    // Set default values for cgst and sgst if not provided
+    if (cgstRate === undefined) cgstRate = gstRate / 2;
+    if (sgstRate === undefined) sgstRate = gstRate / 2;
     
     // Create product options from the products array
     let productOptions = '<option value="">Select Product</option>';
     if (typeof products !== 'undefined') {
         products.forEach(product => {
             const selected = product.id === productId ? 'selected' : '';
-            productOptions += `<option value="${product.id}" ${selected} data-name="${product.name}" data-hsn="${product.hsn_code}" data-unit="${product.unit}" data-rate="${product.price}" data-gst="${product.gst_rate}" data-description="${product.description || ''}">${product.name} - ₹${product.price}</option>`;
+            productOptions += `<option value="${product.id}" ${selected} 
+                data-name="${product.name}" 
+                data-hsn="${product.hsn_code}" 
+                data-unit="${product.unit}" 
+                data-rate="${product.price}" 
+                data-gst="${product.gst_rate}" 
+                data-cgst="${product.cgst_rate || product.gst_rate/2}" 
+                data-sgst="${product.sgst_rate || product.gst_rate/2}" 
+                data-description="${product.description || ''}">${product.name} - ₹${product.price}</option>`;
         });
     }
     
@@ -576,7 +632,12 @@ function loadExistingItem(productId, quantity, productName, hsnCode, unit, rate,
             <input type="hidden" name="items-${itemCounter-1}-rate" class="rate-field" value="${rate}">
         </td>
         <td>
-            <span class="gst-display">${gstRate}%</span>
+            <span class="cgst-display">${cgstRate}%</span>
+            <input type="hidden" name="items-${itemCounter-1}-cgst_rate" class="cgst-field" value="${cgstRate}">
+        </td>
+        <td>
+            <span class="sgst-display">${sgstRate}%</span>
+            <input type="hidden" name="items-${itemCounter-1}-sgst_rate" class="sgst-field" value="${sgstRate}">
             <input type="hidden" name="items-${itemCounter-1}-gst_rate" class="gst-field" value="${gstRate}">
         </td>
         <td>
@@ -695,21 +756,19 @@ function updateSummary() {
     rows.forEach((row, index) => {
         const quantity = parseFloat(row.querySelector(`input[name="items-${index}-quantity"]`).value) || 0;
         const rate = parseFloat(row.querySelector(`input[name="items-${index}-rate"]`).value) || 0;
-        const gstRate = parseFloat(row.querySelector(`input[name="items-${index}-gst_rate"]`).value) || 0;
+        const cgstRate = parseFloat(row.querySelector(`input[name="items-${index}-cgst_rate"]`).value) || 0;
+        const sgstRate = parseFloat(row.querySelector(`input[name="items-${index}-sgst_rate"]`).value) || 0;
         
         const amount = quantity * rate;
         subtotal += amount;
         
-        // Calculate GST
-        const gstAmount = (amount * gstRate) / 100;
-        
         if (companyState === customerState) {
-            // Intra-state: CGST + SGST
-            totalCGST += gstAmount / 2;
-            totalSGST += gstAmount / 2;
+            // Intra-state: CGST + SGST (use individual rates)
+            totalCGST += (amount * cgstRate) / 100;
+            totalSGST += (amount * sgstRate) / 100;
         } else {
-            // Inter-state: IGST
-            totalIGST += gstAmount;
+            // Inter-state: IGST (combined rate)
+            totalIGST += (amount * (cgstRate + sgstRate)) / 100;
         }
     });
     

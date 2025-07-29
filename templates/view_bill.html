@@ -125,15 +125,16 @@
                 <thead class="table-dark">
                     <tr>
                         <th style="width: 5%">S.No</th>
-                        <th style="width: 30%">Description</th>
+                        <th style="width: 25%">Description</th>
                         <th style="width: 8%">HSN</th>
-                        <th style="width: 8%">Qty</th>
-                        <th style="width: 8%">Unit</th>
-                        <th style="width: 10%">Rate</th>
-                        <th style="width: 10%">Amount</th>
-                        <th style="width: 8%">GST%</th>
-                        <th style="width: 10%">GST Amt</th>
-                        <th style="width: 13%">Total</th>
+                        <th style="width: 7%">Qty</th>
+                        <th style="width: 7%">Unit</th>
+                        <th style="width: 8%">Rate</th>
+                        <th style="width: 8%">Amount</th>
+                        <th style="width: 6%">CGST%</th>
+                        <th style="width: 6%">SGST%</th>
+                        <th style="width: 8%">GST Amt</th>
+                        <th style="width: 12%">Total</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -153,7 +154,8 @@
                         <td>{{ item.unit }}</td>
                         <td class="text-end">₹{{ "%.2f"|format(item.rate|float) }}</td>
                         <td class="text-end">₹{{ "%.2f"|format(item.amount|float) }}</td>
-                        <td class="text-center">{{ "%.1f"|format(item.gst_rate|float) }}%</td>
+                        <td class="text-center">{{ "%.1f"|format(item.cgst_rate|float if item.cgst_rate is defined else item.gst_rate|float/2) }}%</td>
+                        <td class="text-center">{{ "%.1f"|format(item.sgst_rate|float if item.sgst_rate is defined else item.gst_rate|float/2) }}%</td>
                         <td class="text-end">₹{{ "%.2f"|format(gst_amount|float) }}</td>
                         <td class="text-end fw-bold">₹{{ "%.2f"|format(total_amount|float) }}</td>
                     </tr>

@@ -25,7 +25,7 @@ def field_management():
     """Field management main page"""
     if not current_user.is_admin():
         flash('You do not have permission to access field settings.', 'danger')
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
     
     # Get entity types with fields
     entity_types = db.session.query(FieldDefinition.entity_type).distinct().all()
@@ -52,7 +52,7 @@ def new_field():
     """Create a new custom field"""
     if not current_user.is_admin():
         flash('You do not have permission to create fields.', 'danger')
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
     
     form = FieldDefinitionForm()
     
@@ -98,7 +98,7 @@ def edit_field(field_id):
     """Edit an existing custom field"""
     if not current_user.is_admin():
         flash('You do not have permission to edit fields.', 'danger')
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
     
     # Get the field definition
     field = FieldDefinition.query.get_or_404(field_id)
@@ -158,7 +158,7 @@ def delete_field(field_id):
     """Delete a custom field"""
     if not current_user.is_admin():
         flash('You do not have permission to delete fields.', 'danger')
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
     
     # Get the field definition
     field = FieldDefinition.query.get_or_404(field_id)

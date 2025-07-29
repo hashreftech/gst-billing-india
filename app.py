@@ -63,22 +63,6 @@ with app.app_context():
     # Import models to ensure tables are created
     import models  # noqa: F401
     db.create_all()
-    
-    # Create default admin user if no users exist
-    from models import User
-    if User.query.count() == 0:
-        admin_user = User(
-            username='admin',
-            email='admin@gstbilling.com',
-            first_name='System',
-            last_name='Administrator',
-            role='admin',
-            is_active=True
-        )
-        admin_user.set_password('admin123')  # Default password
-        db.session.add(admin_user)
-        db.session.commit()
-        logging.info("Default admin user created: username='admin', password='admin123'")
 
 # Import routes
 import routes  # noqa: F401

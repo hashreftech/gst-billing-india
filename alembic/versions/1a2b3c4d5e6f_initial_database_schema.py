@@ -182,36 +182,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['field_definition_id'], ['field_definition.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    
-    # Insert default data
-    op.execute("""
-    -- Insert default admin user
-    INSERT INTO users (username, email, password_hash, first_name, last_name, role, is_active)
-    VALUES ('admin', 'admin@gstbilling.com', 
-            '$2b$12$tT4COrBKd9jGADK84h5VWeSaMPTn/6QF1e11/nmQnr8bz.wfQ6xFC', -- admin123
-            'System', 'Administrator', 'admin', true);
-    
-    -- Insert default category
-    INSERT INTO category (category_name)
-    VALUES ('General');
-    
-    -- Insert default fields for products
-    INSERT INTO field_definition (entity_type, field_name, display_name, field_type, field_order, required, enabled)
-    VALUES 
-        ('product', 'serial_number', 'Serial Number', 'text', 1, false, true),
-        ('product', 'width', 'Width', 'number', 2, false, true),
-        ('product', 'length', 'Length', 'number', 3, false, true),
-        ('product', 'height', 'Height', 'number', 4, false, true),
-        ('product', 'weight', 'Weight', 'number', 5, false, true),
-        ('product', 'color', 'Color', 'text', 6, false, false),
-        ('product', 'material', 'Material', 'text', 7, false, false);
-    
-    -- Insert default fields for customers
-    INSERT INTO field_definition (entity_type, field_name, display_name, field_type, field_order, required, enabled)
-    VALUES 
-        ('customer', 'website', 'Website', 'text', 1, false, false),
-        ('customer', 'notes', 'Notes', 'text', 2, false, false);
-    """)
+
+    # Note: Default data insertion has been moved to the db_manage.py script
+    # to ensure a single source of truth for data seeding.
+    pass
 
 
 def downgrade() -> None:

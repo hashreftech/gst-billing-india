@@ -178,7 +178,7 @@ def generate_invoice_pdf(bill, company):
     
     # Items table header
     items_data = [
-        ['S.No', 'Description', 'HSN', 'Qty', 'Unit', 'Rate', 'Amount', 'GST%', 'GST Amt', 'Total']
+        ['S.No', 'Description', 'HSN', 'Qty', 'Unit', 'Rate', 'Amount', 'CGST%', 'SGST%', 'GST Amt', 'Total']
     ]
     
     # Items data
@@ -194,15 +194,16 @@ def generate_invoice_pdf(bill, company):
             item.unit,
             Paragraph(format_rupee(item.rate, True, USE_FALLBACK_CURRENCY), amount_style),
             Paragraph(format_rupee(item.amount, True, USE_FALLBACK_CURRENCY), amount_style),
-            f"{item.gst_rate:.1f}%",
+            f"{item.cgst_rate:.1f}%" if hasattr(item, 'cgst_rate') and item.cgst_rate else f"{item.gst_rate/2:.1f}%",
+            f"{item.sgst_rate:.1f}%" if hasattr(item, 'sgst_rate') and item.sgst_rate else f"{item.gst_rate/2:.1f}%",
             Paragraph(format_rupee(gst_amount, True, USE_FALLBACK_CURRENCY), amount_style),
             Paragraph(format_rupee(total_amount, True, USE_FALLBACK_CURRENCY), amount_style)
         ])
     
     # Items table
     items_table = Table(items_data, colWidths=[
-        0.4*inch, 2.2*inch, 0.6*inch, 0.5*inch, 0.5*inch, 
-        0.8*inch, 0.8*inch, 0.5*inch, 0.8*inch, 0.9*inch
+        0.4*inch, 2.0*inch, 0.5*inch, 0.5*inch, 0.5*inch, 
+        0.7*inch, 0.7*inch, 0.5*inch, 0.5*inch, 0.7*inch, 0.8*inch
     ])
     
     items_table.setStyle(TableStyle([

@@ -275,6 +275,12 @@ python db_manage.py init
 # Reset the database (drops all tables and recreates them)
 python db_manage.py reset
 
+# Reset the database and create default data (admin user, sample customer, and product)
+python db_manage.py reset-with-data
+
+# Initialize database with default data only (without resetting the database)
+python db_manage.py init-data
+
 # Apply all unapplied migrations
 python db_manage.py upgrade
 
@@ -284,6 +290,16 @@ python db_manage.py downgrade revision_id
 # Create a new migration
 python db_manage.py revision "Description of changes"
 ```
+
+### Default Data
+
+When you run the `reset-with-data` command, it will:
+1. Reset the database using `db_manage.py reset`
+2. Create a default admin user (username: `admin`, password: `admin123`)
+3. Create a sample customer (Sample Business Pvt Ltd)
+4. Create a sample product with 18% GST (9% CGST, 9% SGST)
+
+This provides a complete starting point for testing the application with CGST and SGST tax calculation features. The sample product is configured with 18% GST, which is split into 9% CGST and 9% SGST, demonstrating the tax component separation.
 
 ### Dynamic Custom Fields System
 

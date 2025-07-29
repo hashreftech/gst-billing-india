@@ -72,7 +72,7 @@
                             {{ form.gst_rate.label(class="form-label") }}
                             <span class="text-danger">*</span>
                             <div class="input-group">
-                                {{ form.gst_rate(class="form-control" + (" is-invalid" if form.gst_rate.errors else ""), step="0.1") }}
+                                {{ form.gst_rate(class="form-control" + (" is-invalid" if form.gst_rate.errors else ""), step="0.1", id="gst_rate_total", onchange="syncGstRates()") }}
                                 <span class="input-group-text">%</span>
                             </div>
                             {% if form.gst_rate.errors %}
@@ -93,6 +93,36 @@
                                 </div>
                             {% endif %}
                             <div class="form-text">e.g., Nos, Kg, Ltr, Mtr, etc.</div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.cgst_rate.label(class="form-label") }}
+                            <span class="text-danger">*</span>
+                            <div class="input-group">
+                                {{ form.cgst_rate(class="form-control" + (" is-invalid" if form.cgst_rate.errors else ""), step="0.1", id="cgst_rate", onchange="updateTotalGst()") }}
+                                <span class="input-group-text">%</span>
+                            </div>
+                            {% if form.cgst_rate.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.cgst_rate.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            {{ form.sgst_rate.label(class="form-label") }}
+                            <span class="text-danger">*</span>
+                            <div class="input-group">
+                                {{ form.sgst_rate(class="form-control" + (" is-invalid" if form.sgst_rate.errors else ""), step="0.1", id="sgst_rate", onchange="updateTotalGst()") }}
+                                <span class="input-group-text">%</span>
+                            </div>
+                            {% if form.sgst_rate.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.sgst_rate.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                     
@@ -232,7 +262,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Auto-format price and GST rate
     const priceInput = document.getElementById('price');
-    const gstRateInput = document.getElementById('gst_rate');
+    const gstRateInput = document.getElementById('gst_rate_total');
+    const cgstRateInput = document.getElementById('cgst_rate');
+    const sgstRateInput = document.getElementById('sgst_rate');
     
     // Add common GST rate buttons
     const gstRateContainer = gstRateInput.parentElement.parentElement;
@@ -265,7 +297,25 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function setGSTRate(rate) {
-    document.getElementById('gst_rate').value = rate;
+    document.getElementById('gst_rate_total').value = rate;
+    // Split the rate between CGST and SGST
+    const halfRate = rate / 2;
+    document.getElementById('cgst_rate').value = halfRate;
+    document.getElementById('sgst_rate').value = halfRate;
+}
+
+function syncGstRates() {
+    const totalRate = parseFloat(document.getElementById('gst_rate_total').value) || 0;
+    // Split the rate between CGST and SGST
+    const halfRate = totalRate / 2;
+    document.getElementById('cgst_rate').value = halfRate;
+    document.getElementById('sgst_rate').value = halfRate;
+}
+
+function updateTotalGst() {
+    const cgstRate = parseFloat(document.getElementById('cgst_rate').value) || 0;
+    const sgstRate = parseFloat(document.getElementById('sgst_rate').value) || 0;
+    document.getElementById('gst_rate_total').value = cgstRate + sgstRate;
 }
 </script>
 {% endblock %}

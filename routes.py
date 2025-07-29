@@ -97,7 +97,7 @@ def login():
             # Redirect to next page if specified, otherwise index (dashboard)
             next_page = request.args.get('next')
             flash('Login successful!', 'success')
-            return redirect(next_page) if next_page else redirect(url_for('index'))
+            return redirect(next_page) if next_page else redirect(url_for('dashboard'))
         
         # Invalid credentials
         flash('Invalid username or password', 'danger')
@@ -115,7 +115,7 @@ def logout():
 
 @app.route('/')
 @login_required
-def index():
+def dashboard():
     """Dashboard showing recent activity and quick stats"""
     total_customers = Customer.query.count()
     total_products = Product.query.count()

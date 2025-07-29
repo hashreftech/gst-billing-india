@@ -75,7 +75,9 @@ class ProductForm(FlaskForm):
     description = TextAreaField('Description', validators=[Optional()], widget=TextArea())
     price = DecimalField('Price', validators=[DataRequired()], places=2)
     hsn_code = StringField('HSN Code', validators=[DataRequired(), Length(min=4, max=10)])
-    gst_rate = DecimalField('GST Rate (%)', validators=[DataRequired()], places=2, default=18.0)
+    gst_rate = DecimalField('Total GST Rate (%)', validators=[DataRequired()], places=2, default=18.0)
+    cgst_rate = DecimalField('CGST Rate (%)', validators=[DataRequired()], places=2, default=9.0)
+    sgst_rate = DecimalField('SGST Rate (%)', validators=[DataRequired()], places=2, default=9.0)
     unit = StringField('Unit', validators=[DataRequired(), Length(max=20)], default='Nos')
     category = SelectField('Category', validators=[DataRequired()], coerce=str, choices=[])
     
