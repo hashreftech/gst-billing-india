@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h2><i class="fas fa-user-circle"></i> Profile</h2>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">User Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Username:</strong> {{ current_user.username }}</p>
+                        <p><strong>Email:</strong> {{ current_user.email }}</p>
+                        <p><strong>Role:</strong> 
+                            <span class="badge bg-{{ 'danger' if current_user.role == 'admin' else ('warning' if current_user.role == 'manager' else 'secondary') }}">
+                                {{ current_user.role.title() }}
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Full Name:</strong> {{ current_user.get_full_name() }}</p>
+                        {% if current_user.phone %}
+                        <p><strong>Phone:</strong> {{ current_user.phone }}</p>
+                        {% endif %}
+                        {% if current_user.last_login %}
+                        <p><strong>Last Login:</strong> {{ current_user.last_login.strftime('%d/%m/%Y %H:%M') }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Change Password</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.current_password.label(class="form-label") }}
+                        {{ form.current_password(class="form-control" + (" is-invalid" if form.current_password.errors else "")) }}
+                        {% if form.current_password.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.current_password.errors[0] }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.new_password.label(class="form-label") }}
+                        {{ form.new_password(class="form-control" + (" is-invalid" if form.new_password.errors else "")) }}
+                        {% if form.new_password.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.new_password.errors[0] }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.confirm_password.label(class="form-label") }}
+                        {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else "")) }}
+                        {% if form.confirm_password.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.confirm_password.errors[0] }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Change Password
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle"></i> Account Security</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    For your security, please:
+                </p>
+                <ul class="small text-muted">
+                    <li>Use a strong password with at least 6 characters</li>
+                    <li>Include letters, numbers, and special characters</li>
+                    <li>Don't share your login credentials</li>
+                    <li>Log out when finished using the system</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

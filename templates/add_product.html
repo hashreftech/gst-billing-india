@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if product %}Edit Product{% else %}Add Product{% endif %} - GST Billing Software
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3">
+                {% if product %}
+                    <i class="fas fa-edit me-2"></i>Edit Product
+                {% else %}
+                    <i class="fas fa-plus-square me-2"></i>Add Product
+                {% endif %}
+            </h1>
+            <a href="{{ url_for('products') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Products
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Product Information</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        <span class="text-danger">*</span>
+                        {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+                        {% if form.name.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.name.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label") }}
+                        {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), rows="3") }}
+                        {% if form.description.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.description.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ form.price.label(class="form-label") }}
+                            <span class="text-danger">*</span>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                {{ form.price(class="form-control" + (" is-invalid" if form.price.errors else ""), step="0.01") }}
+                            </div>
+                            {% if form.price.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.price.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            {{ form.gst_rate.label(class="form-label") }}
+                            <span class="text-danger">*</span>
+                            <div class="input-group">
+                                {{ form.gst_rate(class="form-control" + (" is-invalid" if form.gst_rate.errors else ""), step="0.1") }}
+                                <span class="input-group-text">%</span>
+                            </div>
+                            {% if form.gst_rate.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.gst_rate.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">Common rates: 0%, 5%, 12%, 18%, 28%</div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            {{ form.unit.label(class="form-label") }}
+                            <span class="text-danger">*</span>
+                            {{ form.unit(class="form-control" + (" is-invalid" if form.unit.errors else "")) }}
+                            {% if form.unit.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.unit.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">e.g., Nos, Kg, Ltr, Mtr, etc.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.hsn_code.label(class="form-label") }}
+                        <span class="text-danger">*</span>
+                        {{ form.hsn_code(class="form-control" + (" is-invalid" if form.hsn_code.errors else "")) }}
+                        {% if form.hsn_code.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.hsn_code.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">HSN (Harmonized System of Nomenclature) code for tax classification</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.category.label(class="form-label") }}
+                        {{ form.category(class="form-select" + (" is-invalid" if form.category.errors else "")) }}
+                        {% if form.category.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.category.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">Product category for better organization</div>
+                    </div>
+                    
+                    {% if custom_fields %}
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Custom Fields</h5>
+                        </div>
+                        <div class="card-body">
+                            {% for field in custom_fields %}
+                                {% set field_name = "custom_" + field.field_name %}
+                                {% if field.field_type == 'boolean' %}
+                                    <div class="mb-3 form-check">
+                                        {{ form[field_name](class="form-check-input") }}
+                                        <label class="form-check-label" for="{{ field_name }}">{{ field.display_name }}</label>
+                                        {% if field.help_text %}
+                                            <div class="form-text">{{ field.help_text }}</div>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <div class="mb-3">
+                                        <label class="form-label" for="{{ field_name }}">{{ field.display_name }}</label>
+                                        {% if field.required %}<span class="text-danger">*</span>{% endif %}
+                                        
+                                        {% if field.field_type == 'number' %}
+                                            <div class="input-group">
+                                                {{ form[field_name](class="form-control", step="0.01", id=field_name) }}
+                                            </div>
+                                        {% elif field.field_type == 'select' %}
+                                            {{ form[field_name](class="form-select", id=field_name) }}
+                                        {% else %}
+                                            {{ form[field_name](class="form-control", id=field_name) }}
+                                        {% endif %}
+                                        
+                                        {% if field.help_text %}
+                                            <div class="form-text">{{ field.help_text }}</div>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('products') }}" class="btn btn-outline-secondary me-md-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            {% if product %}
+                                <i class="fas fa-save me-2"></i>Update Product
+                            {% else %}
+                                <i class="fas fa-plus me-2"></i>Add Product
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- GST Rate Reference -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Common GST Rates
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>0% GST:</h6>
+                        <ul class="small">
+                            <li>Essential food items (rice, wheat, milk)</li>
+                            <li>Books, newspapers</li>
+                            <li>Medical equipment</li>
+                        </ul>
+                        
+                        <h6>5% GST:</h6>
+                        <ul class="small">
+                            <li>Packaged food items</li>
+                            <li>Medicines</li>
+                            <li>Fertilizers</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>12% GST:</h6>
+                        <ul class="small">
+                            <li>Computers, mobile phones</li>
+                            <li>Processed foods</li>
+                            <li>Ayurvedic medicines</li>
+                        </ul>
+                        
+                        <h6>18% GST:</h6>
+                        <ul class="small">
+                            <li>Most services</li>
+                            <li>Electronics</li>
+                            <li>Soaps, toothpaste</li>
+                        </ul>
+                        
+                        <h6>28% GST:</h6>
+                        <ul class="small">
+                            <li>Luxury items</li>
+                            <li>Cars, motorcycles</li>
+                            <li>Tobacco products</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-format price and GST rate
+    const priceInput = document.getElementById('price');
+    const gstRateInput = document.getElementById('gst_rate');
+    
+    // Add common GST rate buttons
+    const gstRateContainer = gstRateInput.parentElement.parentElement;
+    const buttonGroup = document.createElement('div');
+    buttonGroup.className = 'btn-group btn-group-sm mt-1';
+    buttonGroup.innerHTML = `
+        <button type="button" class="btn btn-outline-secondary" onclick="setGSTRate(0)">0%</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="setGSTRate(5)">5%</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="setGSTRate(12)">12%</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="setGSTRate(18)">18%</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="setGSTRate(28)">28%</button>
+    `;
+    gstRateContainer.appendChild(buttonGroup);
+});
+
+function setGSTRate(rate) {
+    document.getElementById('gst_rate').value = rate;
+}
+</script>
+{% endblock %}

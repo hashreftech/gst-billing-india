@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if customer %}Edit Customer{% else %}Add Customer{% endif %} - GST Billing Software
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3">
+                {% if customer %}
+                    <i class="fas fa-edit me-2"></i>Edit Customer
+                {% else %}
+                    <i class="fas fa-user-plus me-2"></i>Add Customer
+                {% endif %}
+            </h1>
+            <a href="{{ url_for('customers') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Customers
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Customer Information</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            {{ form.name.label(class="form-label") }}
+                            <span class="text-danger">*</span>
+                            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.name.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check mt-4">
+                                {{ form.is_guest(class="form-check-input") }}
+                                {{ form.is_guest.label(class="form-check-label") }}
+                            </div>
+                            <div class="form-text">Check if this is a one-time guest customer</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.email.label(class="form-label") }}
+                            {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""), type="email") }}
+                            {% if form.email.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.email.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            {{ form.phone.label(class="form-label") }}
+                            {{ form.phone(class="form-control" + (" is-invalid" if form.phone.errors else "")) }}
+                            {% if form.phone.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.phone.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.address.label(class="form-label") }}
+                        {{ form.address(class="form-control" + (" is-invalid" if form.address.errors else ""), rows="3") }}
+                        {% if form.address.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.address.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            {{ form.gst_number.label(class="form-label") }}
+                            {{ form.gst_number(class="form-control" + (" is-invalid" if form.gst_number.errors else ""), placeholder="22AAAAA0000A1Z5") }}
+                            {% if form.gst_number.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.gst_number.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">15-digit GST identification number (leave blank for unregistered customers)</div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            {{ form.state_code.label(class="form-label") }}
+                            {{ form.state_code(class="form-select" + (" is-invalid" if form.state_code.errors else "")) }}
+                            {% if form.state_code.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.state_code.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('customers') }}" class="btn btn-outline-secondary me-md-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            {% if customer %}
+                                <i class="fas fa-save me-2"></i>Update Customer
+                            {% else %}
+                                <i class="fas fa-plus me-2"></i>Add Customer
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        {% if customer %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Customer History</h5>
+            </div>
+            <div class="card-body">
+                {% if customer.bills %}
+                    <p><strong>Total Bills:</strong> {{ customer.bills|length }}</p>
+                    <p><strong>Total Amount:</strong> ₹{{ "%.2f"|format(customer.bills|sum(attribute='total_amount')|float) }}</p>
+                    
+                    <h6 class="mt-3">Recent Bills:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Bill Number</th>
+                                    <th>Date</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for bill in customer.bills[:5] %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('view_bill', id=bill.id) }}">{{ bill.bill_number }}</a>
+                                    </td>
+                                    <td>{{ bill.bill_date.strftime('%d/%m/%Y') }}</td>
+                                    <td>₹{{ "%.2f"|format(bill.total_amount|float) }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if bill.status == 'Paid' %}success{% elif bill.status == 'Sent' %}info{% elif bill.status == 'Cancelled' %}danger{% else %}secondary{% endif %}">
+                                            {{ bill.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No bills created for this customer yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-uppercase GST number
+    const gstInput = document.getElementById('gst_number');
+    if (gstInput) {
+        gstInput.addEventListener('input', function() {
+            this.value = this.value.toUpperCase();
+        });
+    }
+    
+    // Toggle GST number and state requirement based on guest status
+    const guestCheckbox = document.getElementById('is_guest');
+    const gstNumberField = document.getElementById('gst_number');
+    const stateField = document.getElementById('state_code');
+    
+    function toggleGSTFields() {
+        if (guestCheckbox.checked) {
+            gstNumberField.removeAttribute('required');
+            stateField.removeAttribute('required');
+        } else {
+            // For registered customers, you might want to make these required
+            // Uncomment the lines below if needed
+            // gstNumberField.setAttribute('required', 'required');
+            // stateField.setAttribute('required', 'required');
+        }
+    }
+    
+    if (guestCheckbox) {
+        guestCheckbox.addEventListener('change', toggleGSTFields);
+        toggleGSTFields(); // Initial setup
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Customers - GST Billing Software{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3">Customers</h1>
+            <a href="{{ url_for('add_customer') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Add Customer
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Search -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <form method="GET" class="d-flex">
+            <input type="text" name="search" class="form-control" placeholder="Search customers..." value="{{ search }}">
+            <button type="submit" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-search"></i>
+            </button>
+            {% if search %}
+                <a href="{{ url_for('customers') }}" class="btn btn-outline-secondary ms-2">
+                    <i class="fas fa-times"></i>
+                </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Customers Table -->
+<div class="card">
+    <div class="card-body">
+        {% if customers.items %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Contact</th>
+                            <th>GST Number</th>
+                            <th>State</th>
+                            <th>Type</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for customer in customers.items %}
+                        <tr>
+                            <td>
+                                <strong>{{ customer.name }}</strong>
+                                {% if customer.address %}
+                                    <br><small class="text-muted">{{ customer.address[:50] }}{% if customer.address|length > 50 %}...{% endif %}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if customer.email %}
+                                    <i class="fas fa-envelope me-1"></i>{{ customer.email }}<br>
+                                {% endif %}
+                                {% if customer.phone %}
+                                    <i class="fas fa-phone me-1"></i>{{ customer.phone }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if customer.gst_number %}
+                                    {{ customer.gst_number }}
+                                {% else %}
+                                    <span class="text-muted">Not provided</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if customer.state_code %}
+                                    {{ customer.state_code }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if customer.is_guest %}
+                                    <span class="badge bg-secondary">Guest</span>
+                                {% else %}
+                                    <span class="badge bg-success">Registered</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ customer.created_at.strftime('%d/%m/%Y') }}</small>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ url_for('edit_customer', id=customer.id) }}" class="btn btn-outline-primary" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-outline-danger" title="Delete" 
+                                            onclick="confirmDelete({{ customer.id }}, '{{ customer.name }}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if customers.pages > 1 %}
+            <nav aria-label="Customer pagination" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if customers.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('customers', page=customers.prev_num, search=search) }}">Previous</a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for page_num in customers.iter_pages() %}
+                        {% if page_num %}
+                            {% if page_num != customers.page %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('customers', page=page_num, search=search) }}">{{ page_num }}</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                            {% endif %}
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if customers.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('customers', page=customers.next_num, search=search) }}">Next</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-users fs-1 text-muted mb-3"></i>
+                <h5 class="text-muted">
+                    {% if search %}
+                        No customers found matching "{{ search }}"
+                    {% else %}
+                        No customers added yet
+                    {% endif %}
+                </h5>
+                <p class="text-muted">
+                    {% if search %}
+                        Try adjusting your search terms.
+                    {% else %}
+                        Add your first customer to get started.
+                    {% endif %}
+                </p>
+                {% if not search %}
+                    <a href="{{ url_for('add_customer') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Add Customer
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete customer <strong id="deleteCustomerName"></strong>?</p>
+                <p class="text-danger small">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmDelete(customerId, customerName) {
+    document.getElementById('deleteCustomerName').textContent = customerName;
+    document.getElementById('deleteForm').action = `/customers/${customerId}/delete`;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

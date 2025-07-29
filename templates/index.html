@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - GST Billing Software{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3">Dashboard</h1>
+            <div>
+                <a href="{{ url_for('create_bill') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Create New Bill
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-0">{{ total_customers }}</h4>
+                        <p class="mb-0">Customers</p>
+                    </div>
+                    <div class="fs-1 opacity-50">
+                        <i class="fas fa-users"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{{ url_for('customers') }}" class="text-white text-decoration-none">
+                    <small>View All <i class="fas fa-arrow-right"></i></small>
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-0">{{ total_products }}</h4>
+                        <p class="mb-0">Products</p>
+                    </div>
+                    <div class="fs-1 opacity-50">
+                        <i class="fas fa-box"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{{ url_for('products') }}" class="text-white text-decoration-none">
+                    <small>View All <i class="fas fa-arrow-right"></i></small>
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-0">{{ total_bills }}</h4>
+                        <p class="mb-0">Total Bills</p>
+                    </div>
+                    <div class="fs-1 opacity-50">
+                        <i class="fas fa-file-invoice"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{{ url_for('bills') }}" class="text-white text-decoration-none">
+                    <small>View All <i class="fas fa-arrow-right"></i></small>
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-0">
+                            ₹{{ "%.2f"|format(recent_bills|sum(attribute='total_amount')|float) if recent_bills else "0.00" }}
+                        </h4>
+                        <p class="mb-0">Recent Sales</p>
+                    </div>
+                    <div class="fs-1 opacity-50">
+                        <i class="fas fa-rupee-sign"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <small>Last 5 bills</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Bills -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Bills</h5>
+                <a href="{{ url_for('bills') }}" class="btn btn-outline-primary btn-sm">View All</a>
+            </div>
+            <div class="card-body">
+                {% if recent_bills %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Bill Number</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for bill in recent_bills %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('view_bill', id=bill.id) }}" class="text-decoration-none">
+                                            {{ bill.bill_number }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {{ bill.customer.name }}
+                                        {% if bill.customer.is_guest %}
+                                            <span class="badge bg-secondary">Guest</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ bill.bill_date.strftime('%d/%m/%Y') }}</td>
+                                    <td>₹{{ "%.2f"|format(bill.total_amount|float) }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if bill.status == 'Paid' %}success{% elif bill.status == 'Sent' %}info{% elif bill.status == 'Cancelled' %}danger{% else %}secondary{% endif %}">
+                                            {{ bill.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('view_bill', id=bill.id) }}" class="btn btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{{ url_for('download_bill_pdf', id=bill.id) }}" class="btn btn-outline-success">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-file-invoice fs-1 text-muted mb-3"></i>
+                        <h5 class="text-muted">No bills created yet</h5>
+                        <p class="text-muted">Create your first bill to get started.</p>
+                        <a href="{{ url_for('create_bill') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Create Bill
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <a href="{{ url_for('add_customer') }}" class="btn btn-outline-primary w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="fas fa-user-plus fs-1 mb-2"></i>
+                            <span>Add Customer</span>
+                        </a>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <a href="{{ url_for('add_product') }}" class="btn btn-outline-success w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="fas fa-plus-square fs-1 mb-2"></i>
+                            <span>Add Product</span>
+                        </a>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <a href="{{ url_for('create_bill') }}" class="btn btn-outline-info w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="fas fa-file-invoice-dollar fs-1 mb-2"></i>
+                            <span>Create Bill</span>
+                        </a>
+                    </div>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <a href="{{ url_for('company_config') }}" class="btn btn-outline-warning w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="fas fa-cogs fs-1 mb-2"></i>
+                            <span>Settings</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

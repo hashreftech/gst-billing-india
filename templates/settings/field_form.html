@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+
+{% block title %}
+{% if action == 'create' %}Add New Field{% else %}Edit Field{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3 mb-0">
+                {% if action == 'create' %}Add New Field{% else %}Edit Field: {{ field.display_name }}{% endif %}
+            </h1>
+            <p class="text-muted">
+                {% if action == 'create' %}
+                    Define a new custom field for your data
+                {% else %}
+                    Modify properties of an existing field
+                {% endif %}
+            </p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('fields.field_management') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Fields
+            </a>
+        </div>
+    </div>
+    
+    <div class="card shadow">
+        <div class="card-body">
+            <form method="POST" class="needs-validation" novalidate>
+                {{ form.csrf_token }}
+                
+                <!-- Entity Type -->
+                <div class="mb-3 row">
+                    <label for="entity_type" class="col-sm-3 col-form-label">Entity Type:</label>
+                    <div class="col-sm-9">
+                        {{ form.entity_type(class="form-select", required=true, disabled=(action == 'edit')) }}
+                        {% if action == 'edit' %}
+                        <input type="hidden" name="entity_type" value="{{ field.entity_type }}">
+                        {% endif %}
+                        <div class="invalid-feedback">Please select an entity type.</div>
+                        <small class="form-text text-muted">
+                            The type of entity this field belongs to (e.g., product, customer).
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Field Name -->
+                <div class="mb-3 row">
+                    <label for="field_name" class="col-sm-3 col-form-label">Field Name:</label>
+                    <div class="col-sm-9">
+                        {{ form.field_name(class="form-select form-control", required=true, 
+                                          pattern="^[a-z][a-z0-9_]*$", 
+                                          placeholder="e.g., serial_number",
+                                          readonly=(action == 'edit')) }}
+                        <div class="invalid-feedback">
+                            Field name must start with a lowercase letter and contain only lowercase letters, 
+                            numbers, and underscores.
+                        </div>
+                        <small class="form-text text-muted">
+                            Technical name used in code (lowercase, no spaces).
+                            {% if action == 'edit' %}This cannot be changed.{% endif %}
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Display Name -->
+                <div class="mb-3 row">
+                    <label for="display_name" class="col-sm-3 col-form-label">Display Name:</label>
+                    <div class="col-sm-9">
+                        {{ form.display_name(class="form-control", required=true, 
+                                            placeholder="e.g., Serial Number") }}
+                        <div class="invalid-feedback">Display name is required.</div>
+                        <small class="form-text text-muted">
+                            Human-readable name shown in forms and UI.
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Field Type -->
+                <div class="mb-3 row">
+                    <label for="field_type" class="col-sm-3 col-form-label">Field Type:</label>
+                    <div class="col-sm-9">
+                        {{ form.field_type(class="form-select", required=true, disabled=(action == 'edit')) }}
+                        {% if action == 'edit' %}
+                        <input type="hidden" name="field_type" value="{{ field.field_type }}">
+                        {% endif %}
+                        <div class="invalid-feedback">Please select a field type.</div>
+                        <small class="form-text text-muted">
+                            The data type for this field.
+                            {% if action == 'edit' %}This cannot be changed.{% endif %}
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Options for Select Type -->
+                <div class="mb-3 row" id="optionsGroup" 
+                     style="display: {% if field and field.field_type == 'select' %}flex{% else %}none{% endif %}">
+                    <label for="options" class="col-sm-3 col-form-label">Options:</label>
+                    <div class="col-sm-9">
+                        {{ form.options(class="form-control", rows="5", 
+                                      placeholder="Enter one option per line") }}
+                        <div class="invalid-feedback">Please provide at least one option.</div>
+                        <small class="form-text text-muted">
+                            Enter one option per line. These will be the choices available in the dropdown.
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Field Order -->
+                <div class="mb-3 row">
+                    <label for="field_order" class="col-sm-3 col-form-label">Display Order:</label>
+                    <div class="col-sm-9">
+                        {{ form.field_order(class="form-control", min="0") }}
+                        <small class="form-text text-muted">
+                            Order in which this field appears in forms (lower numbers first).
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Required -->
+                <div class="mb-3 row">
+                    <div class="col-sm-3">Required:</div>
+                    <div class="col-sm-9">
+                        <div class="form-check">
+                            {{ form.required(class="form-check-input") }}
+                            <label class="form-check-label" for="required">
+                                Make this field required
+                            </label>
+                            <div class="form-text text-muted">
+                                If checked, users must provide a value for this field.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Enabled -->
+                <div class="mb-3 row">
+                    <div class="col-sm-3">Status:</div>
+                    <div class="col-sm-9">
+                        <div class="form-check">
+                            {{ form.enabled(class="form-check-input") }}
+                            <label class="form-check-label" for="enabled">
+                                Enable this field
+                            </label>
+                            <div class="form-text text-muted">
+                                If unchecked, this field will be hidden in forms and not used.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Validation Regex -->
+                <div class="mb-3 row">
+                    <label for="validation_regex" class="col-sm-3 col-form-label">Validation Pattern:</label>
+                    <div class="col-sm-9">
+                        {{ form.validation_regex(class="form-control", 
+                                               placeholder="e.g., ^[A-Z0-9]{10}$") }}
+                        <small class="form-text text-muted">
+                            Optional regular expression pattern for validation.
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Help Text -->
+                <div class="mb-3 row">
+                    <label for="help_text" class="col-sm-3 col-form-label">Help Text:</label>
+                    <div class="col-sm-9">
+                        {{ form.help_text(class="form-control", rows="2",
+                                        placeholder="e.g., Enter the serial number found on the product label") }}
+                        <small class="form-text text-muted">
+                            Optional help text to display below the field.
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Submit buttons -->
+                <div class="row mt-4">
+                    <div class="col-sm-9 offset-sm-3">
+                        <button type="submit" class="btn btn-primary">
+                            {% if action == 'create' %}Create Field{% else %}Save Changes{% endif %}
+                        </button>
+                        <a href="{{ url_for('fields.field_management') }}" class="btn btn-outline-secondary ms-2">
+                            Cancel
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Show/hide options field based on field type
+    const fieldTypeSelect = document.getElementById('field_type');
+    const optionsGroup = document.getElementById('optionsGroup');
+    
+    fieldTypeSelect.addEventListener('change', function() {
+        if (this.value === 'select') {
+            optionsGroup.style.display = 'flex';
+            document.getElementById('options').setAttribute('required', '');
+        } else {
+            optionsGroup.style.display = 'none';
+            document.getElementById('options').removeAttribute('required');
+        }
+    });
+    
+    // Form validation
+    const form = document.querySelector('.needs-validation');
+    form.addEventListener('submit', function(event) {
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        form.classList.add('was-validated');
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit User' if user else 'Add User' }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="d-flex align-items-center mb-4">
+            <a href="{{ url_for('users') }}" class="btn btn-outline-secondary me-3">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <h2>
+                <i class="fas fa-user-{{ 'edit' if user else 'plus' }}"></i>
+                {{ 'Edit User' if user else 'Add New User' }}
+            </h2>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.username.label(class="form-label") }}
+                            {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else "")) }}
+                            {% if form.username.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.username.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            {{ form.email.label(class="form-label") }}
+                            {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
+                            {% if form.email.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.email.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.first_name.label(class="form-label") }}
+                            {{ form.first_name(class="form-control" + (" is-invalid" if form.first_name.errors else "")) }}
+                            {% if form.first_name.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.first_name.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            {{ form.last_name.label(class="form-label") }}
+                            {{ form.last_name(class="form-control" + (" is-invalid" if form.last_name.errors else "")) }}
+                            {% if form.last_name.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.last_name.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.phone.label(class="form-label") }}
+                            {{ form.phone(class="form-control" + (" is-invalid" if form.phone.errors else "")) }}
+                            {% if form.phone.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.phone.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            {{ form.role.label(class="form-label") }}
+                            {{ form.role(class="form-select" + (" is-invalid" if form.role.errors else "")) }}
+                            {% if form.role.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.role.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if user %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.is_active(class="form-check-input") }}
+                            {{ form.is_active.label(class="form-check-label") }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <hr>
+
+                    <h5>{{ 'Change Password' if user else 'Password' }}</h5>
+                    {% if user %}
+                    <p class="text-muted small">Leave password fields empty to keep current password.</p>
+                    {% endif %}
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.password.label(class="form-label") }}
+                            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
+                            {% if form.password.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.password.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            {{ form.confirm_password.label(class="form-label") }}
+                            {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else "")) }}
+                            {% if form.confirm_password.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.confirm_password.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> Save User
+                        </button>
+                        <a href="{{ url_for('users') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle"></i> User Roles</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <span class="badge bg-secondary">User</span>
+                    <p class="small text-muted mt-1">Basic access to create bills and manage customers/products.</p>
+                </div>
+                
+                <div class="mb-3">
+                    <span class="badge bg-warning">Manager</span>
+                    <p class="small text-muted mt-1">All user permissions plus company configuration access.</p>
+                </div>
+                
+                <div class="mb-0">
+                    <span class="badge bg-danger">Administrator</span>
+                    <p class="small text-muted mt-1">Full system access including user management.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

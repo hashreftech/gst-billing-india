@@ -1,0 +1,946 @@
+{% extends "base.html" %}
+
+{% block title %}{% if edit_mode %}Edit Bill{% else %}Create Bill{% endif %} - GST Billing Software{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3">
+                <i class="fas fa-file-invoice-dollar me-2"></i>{% if edit_mode %}Edit Bill{% if bill %} - {{ bill.bill_number }}{% endif %}{% else %}Create New Bill{% endif %}
+            </h1>
+            <a href="{{ url_for('bills') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Bills
+            </a>
+        </div>
+    </div>
+</div>
+
+<form method="POST" id="billForm">
+    {{ form.hidden_tag() }}
+    
+    <div class="row">
+        <!-- Customer Selection -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Customer Information</h5>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#quickCustomerModal">
+                        <i class="fas fa-plus me-1"></i>Quick Add
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.customer_id.label(class="form-label") }}
+                            <span class="text-danger">*</span>
+                            {{ form.customer_id(class="form-select" + (" is-invalid" if form.customer_id.errors else ""), id="customer_select") }}
+                            {% if form.customer_id.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.customer_id.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            {{ form.bill_date.label(class="form-label") }}
+                            <span class="text-danger">*</span>
+                            {{ form.bill_date(class="form-control" + (" is-invalid" if form.bill_date.errors else "")) }}
+                            {% if form.bill_date.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.bill_date.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            {{ form.due_date.label(class="form-label") }}
+                            {{ form.due_date(class="form-control" + (" is-invalid" if form.due_date.errors else "")) }}
+                            {% if form.due_date.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.due_date.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        {% if edit_mode %}
+                        <div class="col-md-3 mb-3">
+                            {{ form.status.label(class="form-label") }}
+                            {{ form.status(class="form-select" + (" is-invalid" if form.status.errors else "")) }}
+                            {% if form.status.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.status.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Discount Section -->
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ form.discount_type.label(class="form-label") }}
+                            {{ form.discount_type(class="form-select", id="discount_type", onchange="updateDiscountField()") }}
+                        </div>
+                        <div class="col-md-4 mb-3" id="discount_value_container" style="display: none;">
+                            {{ form.discount_value.label(class="form-label", id="discount_value_label") }}
+                            {{ form.discount_value(class="form-control", id="discount_value", oninput="updateSummary()", step="0.01") }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bill Summary -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Bill Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <span>Subtotal:</span>
+                        <span id="summary-subtotal">₹0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between" id="discount-row" style="display: none;">
+                        <span>Discount:</span>
+                        <span id="summary-discount">₹0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>CGST:</span>
+                        <span id="summary-cgst">₹0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>SGST:</span>
+                        <span id="summary-sgst">₹0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>IGST:</span>
+                        <span id="summary-igst">₹0.00</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between fw-bold">
+                        <span>Total:</span>
+                        <span id="summary-total">₹0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Items Section -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Bill Items</h5>
+            <button type="button" class="btn btn-primary btn-sm" onclick="addNewItem()">
+                <i class="fas fa-plus me-1"></i>Add Item
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="itemsTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%">Product</th>
+                            <th style="width: 15%">HSN</th>
+                            <th style="width: 10%">Qty</th>
+                            <th style="width: 8%">Unit</th>
+                            <th style="width: 12%">Rate</th>
+                            <th style="width: 8%">GST%</th>
+                            <th style="width: 12%">Amount</th>
+                            <th style="width: 10%">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsTableBody">
+                        <!-- Items will be added dynamically -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="text-center py-3" id="noItemsMessage">
+                <i class="fas fa-box fs-1 text-muted mb-2"></i>
+                <p class="text-muted">No items added yet. Click "Add Item" to get started.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Notes -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Additional Information</h5>
+        </div>
+        <div class="card-body">
+            {{ form.notes.label(class="form-label") }}
+            {{ form.notes(class="form-control", rows="3", placeholder="Any additional notes or terms...") }}
+        </div>
+    </div>
+    
+    <!-- Actions -->
+    <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-4">
+        <a href="{{ url_for('bills') }}" class="btn btn-outline-secondary me-md-2">Cancel</a>
+        <button type="submit" class="btn btn-primary" id="saveBillBtn" disabled>
+            <i class="fas fa-save me-2"></i>Create Bill
+        </button>
+    </div>
+</form>
+
+<!-- Quick Customer Modal -->
+<div class="modal fade" id="quickCustomerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Quick Add Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickCustomerForm">
+                    <div class="mb-3">
+                        <label class="form-label">Customer Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="quick_customer_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" id="quick_customer_email">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="text" class="form-control" id="quick_customer_phone">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Address</label>
+                        <textarea class="form-control" id="quick_customer_address" rows="2"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="quick_customer_guest" checked>
+                        <label class="form-check-label" for="quick_customer_guest">
+                            Guest Customer
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveQuickCustomer()">Add Customer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Product Selection Modal -->
+<div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" id="productSearch" placeholder="Search products...">
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">All Categories</option>
+                            <option value="General">General</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Clothing">Clothing</option>
+                            <option value="Food & Beverages">Food & Beverages</option>
+                            <option value="Health & Beauty">Health & Beauty</option>
+                            <option value="Home & Garden">Home & Garden</option>
+                            <option value="Sports & Outdoors">Sports & Outdoors</option>
+                            <option value="Automotive">Automotive</option>
+                            <option value="Books & Stationery">Books & Stationery</option>
+                            <option value="Services">Services</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-success w-100" onclick="showQuickAddProduct()">
+                            <i class="fas fa-plus"></i> Quick Add
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>HSN</th>
+                                <th>Price</th>
+                                <th>GST%</th>
+                                <th>Unit</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productTableBody">
+                            {% for product in products %}
+                            <tr data-category="{{ product.category or 'General' }}">
+                                <td>
+                                    <strong>{{ product.name }}</strong>
+                                    {% if product.description %}
+                                        <br><small class="text-muted">{{ product.description }}</small>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge bg-secondary">{{ product.category or 'General' }}</span></td>
+                                <td>{{ product.hsn_code }}</td>
+                                <td>₹{{ "%.2f"|format(product.price|float) }}</td>
+                                <td>{{ "%.1f"|format(product.gst_rate|float) }}%</td>
+                                <td>{{ product.unit }}</td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="selectProduct({{ product.id }})">
+                                        Select
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Add Product Modal -->
+<div class="modal fade" id="quickAddProductModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Quick Add Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickAddProductForm">
+                    <div class="mb-3">
+                        <label class="form-label">Product Name *</label>
+                        <input type="text" class="form-control" id="quick_product_name" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Price *</label>
+                                <input type="number" class="form-control" id="quick_product_price" step="0.01" min="0.01" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">HSN Code *</label>
+                                <input type="text" class="form-control" id="quick_product_hsn" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">GST Rate (%) *</label>
+                                <input type="number" class="form-control" id="quick_product_gst" step="0.1" min="0" max="100" value="18" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Unit *</label>
+                                <input type="text" class="form-control" id="quick_product_unit" value="Nos" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-select" id="quick_product_category">
+                            <option value="General">General</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Clothing">Clothing</option>
+                            <option value="Food & Beverages">Food & Beverages</option>
+                            <option value="Health & Beauty">Health & Beauty</option>
+                            <option value="Home & Garden">Home & Garden</option>
+                            <option value="Sports & Outdoors">Sports & Outdoors</option>
+                            <option value="Automotive">Automotive</option>
+                            <option value="Books & Stationery">Books & Stationery</option>
+                            <option value="Services">Services</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="quick_product_description" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="saveQuickProduct()">Add Product</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Global variables
+let itemCounter = 0;
+let currentItemRow = null;
+const products = {{ products|tojson }};
+
+// Initialize form
+document.addEventListener('DOMContentLoaded', function() {
+    // Set today's date as default if not editing
+    {% if not edit_mode %}
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('bill_date').value = today;
+    {% endif %}
+    
+    // Initialize discount field visibility
+    updateDiscountField();
+    
+    // Load existing items if in edit mode or duplicating, otherwise add first item row
+    {% if edit_mode and bill.items %}
+    {% for item in bill.items %}
+    loadExistingItem({{ item.product_id if item.product_id else 0 }}, {{ item.quantity if item.quantity else 1 }}, '{{ item.product_name|replace("'", "\\'") if item.product_name else "" }}', '{{ item.hsn_code if item.hsn_code else "" }}', '{{ item.unit if item.unit else "" }}', {{ item.rate if item.rate else 0 }}, {{ item.gst_rate if item.gst_rate else 0 }}, '{{ item.description|replace("'", "\\'") if item.description else "" }}');
+    {% endfor %}
+    // Calculate totals after loading all items
+    setTimeout(() => {
+        updateSummary();
+    }, 200);
+    {% elif duplicate_bill and duplicate_bill.items %}
+    {% for item in duplicate_bill.items %}
+    loadExistingItem({{ item.product_id if item.product_id else 0 }}, {{ item.quantity if item.quantity else 1 }}, '{{ item.product_name|replace("'", "\\'") if item.product_name else "" }}', '{{ item.hsn_code if item.hsn_code else "" }}', '{{ item.unit if item.unit else "" }}', {{ item.rate if item.rate else 0 }}, {{ item.gst_rate if item.gst_rate else 0 }}, '{{ item.description|replace("'", "\\'") if item.description else "" }}');
+    {% endfor %}
+    // Calculate totals after loading duplicate items
+    setTimeout(() => {
+        updateSummary();
+    }, 200);
+    {% else %}
+    addNewItem();
+    {% endif %}
+    
+    // Initialize product search and filters
+    document.getElementById('productSearch').addEventListener('input', filterProducts);
+    document.getElementById('categoryFilter').addEventListener('change', filterProducts);
+});
+
+function addNewItem() {
+    itemCounter++;
+    const tbody = document.getElementById('itemsTableBody');
+    const row = document.createElement('tr');
+    row.id = `item-row-${itemCounter}`;
+    
+    // Create product options from the products array
+    let productOptions = '<option value="">Select Product</option>';
+    if (typeof products !== 'undefined') {
+        products.forEach(product => {
+            productOptions += `<option value="${product.id}" data-name="${product.name}" data-hsn="${product.hsn_code}" data-unit="${product.unit}" data-rate="${product.price}" data-gst="${product.gst_rate}" data-description="${product.description || ''}">${product.name} - ₹${product.price}</option>`;
+        });
+    }
+    
+    row.innerHTML = `
+        <td>
+            <select class="form-select" name="items-${itemCounter-1}-product_id" required onchange="updateItemFromProduct(this, ${itemCounter})">
+                ${productOptions}
+            </select>
+            <button type="button" class="btn btn-link btn-sm p-0 mt-1" onclick="openProductModal(${itemCounter})">
+                <i class="fas fa-search"></i> Browse Products
+            </button>
+            <small class="text-muted product-details"></small>
+            <input type="hidden" name="items-${itemCounter-1}-product_name" class="product-name-field">
+            <input type="hidden" name="items-${itemCounter-1}-description" class="description-field">
+        </td>
+        <td>
+            <span class="hsn-display">-</span>
+            <input type="hidden" name="items-${itemCounter-1}-hsn_code" class="hsn-field">
+        </td>
+        <td>
+            <input type="number" class="form-control" name="items-${itemCounter-1}-quantity" 
+                   step="0.001" min="0.001" value="1" required onchange="calculateItemAmount(${itemCounter})">
+        </td>
+        <td>
+            <span class="unit-display">-</span>
+            <input type="hidden" name="items-${itemCounter-1}-unit" class="unit-field">
+        </td>
+        <td>
+            <span class="rate-display">₹0.00</span>
+            <input type="hidden" name="items-${itemCounter-1}-rate" class="rate-field">
+        </td>
+        <td>
+            <span class="gst-display">0%</span>
+            <input type="hidden" name="items-${itemCounter-1}-gst_rate" class="gst-field">
+        </td>
+        <td>
+            <span class="item-amount fw-bold">₹0.00</span>
+        </td>
+        <td>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeItem(${itemCounter})">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(row);
+    document.getElementById('noItemsMessage').style.display = 'none';
+    updateFormButtons();
+}
+
+function updateItemFromProduct(selectElement, itemId) {
+    const selectedOption = selectElement.options[selectElement.selectedIndex];
+    const row = selectElement.closest('tr');
+    
+    if (selectedOption.value === '') {
+        // Reset fields if no product selected
+        row.querySelector('.hsn-display').textContent = '-';
+        row.querySelector('.unit-display').textContent = '-';
+        row.querySelector('.rate-display').textContent = '₹0.00';
+        row.querySelector('.gst-display').textContent = '0%';
+        row.querySelector('.product-details').textContent = '';
+        
+        // Clear hidden fields
+        row.querySelector('.hsn-field').value = '';
+        row.querySelector('.unit-field').value = '';
+        row.querySelector('.rate-field').value = '';
+        row.querySelector('.gst-field').value = '';
+        row.querySelector('.product-name-field').value = '';
+        row.querySelector('.description-field').value = '';
+        
+        calculateItemAmount(itemId);
+        return;
+    }
+    
+    // Get product data from option attributes
+    const hsn = selectedOption.dataset.hsn || '';
+    const unit = selectedOption.dataset.unit || 'Nos';
+    const rate = parseFloat(selectedOption.dataset.rate) || 0;
+    const gstRate = parseFloat(selectedOption.dataset.gst) || 18;
+    const description = selectedOption.dataset.description || '';
+    const productName = selectedOption.dataset.name || selectedOption.textContent.split(' - ₹')[0];
+    
+    // Update display fields
+    row.querySelector('.hsn-display').textContent = hsn;
+    row.querySelector('.unit-display').textContent = unit;
+    row.querySelector('.rate-display').textContent = `₹${rate.toFixed(2)}`;
+    row.querySelector('.gst-display').textContent = `${gstRate}%`;
+    row.querySelector('.product-details').textContent = description;
+    
+    // Update hidden form fields
+    row.querySelector('.hsn-field').value = hsn;
+    row.querySelector('.unit-field').value = unit;
+    row.querySelector('.rate-field').value = rate;
+    row.querySelector('.gst-field').value = gstRate;
+    row.querySelector('.product-name-field').value = productName;
+    row.querySelector('.description-field').value = description;
+    
+    // Recalculate amount
+    calculateItemAmount(itemId);
+}
+
+function loadExistingItem(productId, quantity, productName, hsnCode, unit, rate, gstRate, description) {
+    itemCounter++;
+    const tbody = document.getElementById('itemsTableBody');
+    const row = document.createElement('tr');
+    row.id = `item-row-${itemCounter}`;
+    
+    // Create product options from the products array
+    let productOptions = '<option value="">Select Product</option>';
+    if (typeof products !== 'undefined') {
+        products.forEach(product => {
+            const selected = product.id === productId ? 'selected' : '';
+            productOptions += `<option value="${product.id}" ${selected} data-name="${product.name}" data-hsn="${product.hsn_code}" data-unit="${product.unit}" data-rate="${product.price}" data-gst="${product.gst_rate}" data-description="${product.description || ''}">${product.name} - ₹${product.price}</option>`;
+        });
+    }
+    
+    row.innerHTML = `
+        <td>
+            <select class="form-select" name="items-${itemCounter-1}-product_id" required onchange="updateItemFromProduct(this, ${itemCounter})">
+                ${productOptions}
+            </select>
+            <button type="button" class="btn btn-link btn-sm p-0 mt-1" onclick="openProductModal(${itemCounter})">
+                <i class="fas fa-search"></i> Browse Products
+            </button>
+            <small class="text-muted product-details">${description}</small>
+            <input type="hidden" name="items-${itemCounter-1}-product_name" class="product-name-field" value="${productName}">
+            <input type="hidden" name="items-${itemCounter-1}-description" class="description-field" value="${description}">
+        </td>
+        <td>
+            <span class="hsn-display">${hsnCode}</span>
+            <input type="hidden" name="items-${itemCounter-1}-hsn_code" class="hsn-field" value="${hsnCode}">
+        </td>
+        <td>
+            <input type="number" class="form-control" name="items-${itemCounter-1}-quantity" 
+                   step="0.001" min="0.001" value="${quantity}" required onchange="calculateItemAmount(${itemCounter})">
+        </td>
+        <td>
+            <span class="unit-display">${unit}</span>
+            <input type="hidden" name="items-${itemCounter-1}-unit" class="unit-field" value="${unit}">
+        </td>
+        <td>
+            <span class="rate-display">₹${parseFloat(rate).toFixed(2)}</span>
+            <input type="hidden" name="items-${itemCounter-1}-rate" class="rate-field" value="${rate}">
+        </td>
+        <td>
+            <span class="gst-display">${gstRate}%</span>
+            <input type="hidden" name="items-${itemCounter-1}-gst_rate" class="gst-field" value="${gstRate}">
+        </td>
+        <td>
+            <span class="item-amount fw-bold">₹${(parseFloat(quantity) * parseFloat(rate)).toFixed(2)}</span>
+        </td>
+        <td>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeItem(${itemCounter})">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(row);
+    document.getElementById('noItemsMessage').style.display = 'none';
+    
+    // Force immediate calculation for this loaded item
+    setTimeout(() => {
+        calculateItemAmount(itemCounter);
+        updateSummary();
+    }, 50);
+    
+    updateFormButtons();
+}
+
+function removeItem(itemId) {
+    const row = document.getElementById(`item-row-${itemId}`);
+    if (row) {
+        row.remove();
+        updateSummary();
+        updateFormButtons();
+        
+        // Show no items message if no rows left
+        const tbody = document.getElementById('itemsTableBody');
+        if (tbody.children.length === 0) {
+            document.getElementById('noItemsMessage').style.display = 'block';
+        }
+    }
+}
+
+function openProductModal(itemId) {
+    currentItemRow = itemId;
+    const modal = new bootstrap.Modal(document.getElementById('productModal'));
+    modal.show();
+}
+
+function selectProduct(productId) {
+    const product = products.find(p => p.id === productId);
+    if (product && currentItemRow) {
+        const row = document.getElementById(`item-row-${currentItemRow}`);
+        const selectElement = row.querySelector('select[name*="product_id"]');
+        
+        // Set the select value
+        selectElement.value = product.id;
+        
+        // Trigger the change event to update all fields
+        updateItemFromProduct(selectElement, currentItemRow);
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+        modal.hide();
+    }
+}
+
+function calculateItemAmount(itemId) {
+    const row = document.getElementById(`item-row-${itemId}`);
+    const quantity = parseFloat(row.querySelector(`input[name="items-${itemId-1}-quantity"]`).value) || 0;
+    const rate = parseFloat(row.querySelector(`input[name="items-${itemId-1}-rate"]`).value) || 0;
+    
+    const amount = quantity * rate;
+    row.querySelector('.item-amount').textContent = `₹${amount.toFixed(2)}`;
+    
+    updateSummary();
+}
+
+// Update discount field visibility and label
+function updateDiscountField() {
+    const discountType = document.getElementById('discount_type');
+    const discountContainer = document.getElementById('discount_value_container');
+    const discountLabel = document.getElementById('discount_value_label');
+    const discountInput = document.getElementById('discount_value');
+    
+    if (!discountType) return;
+    
+    if (discountType.value === 'none') {
+        discountContainer.style.display = 'none';
+        if (discountInput) discountInput.value = '';
+    } else {
+        discountContainer.style.display = 'block';
+        if (discountType.value === 'percentage') {
+            discountLabel.textContent = 'Discount Percentage (%)';
+            discountInput.setAttribute('max', '100');
+            discountInput.setAttribute('placeholder', 'Enter percentage (0-100)');
+        } else if (discountType.value === 'amount') {
+            discountLabel.textContent = 'Discount Amount (₹)';
+            discountInput.removeAttribute('max');
+            discountInput.setAttribute('placeholder', 'Enter amount');
+        }
+    }
+    updateSummary();
+}
+
+function updateSummary() {
+    let subtotal = 0;
+    let totalCGST = 0;
+    let totalSGST = 0;
+    let totalIGST = 0;
+    
+    // Get company and customer state codes for GST calculation
+    const companyState = '27'; // Default to Maharashtra, should be from company config
+    const customerSelect = document.getElementById('customer_select');
+    const customerState = customerSelect.value ? companyState : companyState; // Simplified for now
+    
+    const tbody = document.getElementById('itemsTableBody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    rows.forEach((row, index) => {
+        const quantity = parseFloat(row.querySelector(`input[name="items-${index}-quantity"]`).value) || 0;
+        const rate = parseFloat(row.querySelector(`input[name="items-${index}-rate"]`).value) || 0;
+        const gstRate = parseFloat(row.querySelector(`input[name="items-${index}-gst_rate"]`).value) || 0;
+        
+        const amount = quantity * rate;
+        subtotal += amount;
+        
+        // Calculate GST
+        const gstAmount = (amount * gstRate) / 100;
+        
+        if (companyState === customerState) {
+            // Intra-state: CGST + SGST
+            totalCGST += gstAmount / 2;
+            totalSGST += gstAmount / 2;
+        } else {
+            // Inter-state: IGST
+            totalIGST += gstAmount;
+        }
+    });
+    
+    // Calculate discount
+    let discountAmount = 0;
+    const discountType = document.getElementById('discount_type') ? document.getElementById('discount_type').value : 'none';
+    const discountValue = parseFloat(document.getElementById('discount_value') ? document.getElementById('discount_value').value : 0) || 0;
+    
+    if (discountType === 'percentage' && discountValue > 0) {
+        const validPercentage = Math.min(Math.max(discountValue, 0), 100);
+        if (document.getElementById('discount_value') && discountValue !== validPercentage) {
+            document.getElementById('discount_value').value = validPercentage;
+        }
+        discountAmount = (subtotal * validPercentage) / 100;
+    } else if (discountType === 'amount' && discountValue > 0) {
+        const validAmount = Math.min(Math.max(discountValue, 0), subtotal);
+        if (document.getElementById('discount_value') && discountValue !== validAmount) {
+            document.getElementById('discount_value').value = validAmount;
+        }
+        discountAmount = validAmount;
+    }
+    
+    // Show/hide discount row
+    const discountRow = document.getElementById('discount-row');
+    if (discountRow) {
+        if (discountAmount > 0) {
+            discountRow.style.display = 'flex';
+            const discountEl = document.getElementById('summary-discount');
+            if (discountEl) discountEl.textContent = `-₹${discountAmount.toFixed(2)}`;
+        } else {
+            discountRow.style.display = 'none';
+        }
+    }
+    
+    const total = subtotal - discountAmount + totalCGST + totalSGST + totalIGST;
+    
+    // Update summary display with null checks
+    const subtotalEl = document.getElementById('summary-subtotal');
+    const cgstEl = document.getElementById('summary-cgst');
+    const sgstEl = document.getElementById('summary-sgst');
+    const igstEl = document.getElementById('summary-igst');
+    const totalEl = document.getElementById('summary-total');
+    
+    if (subtotalEl) subtotalEl.textContent = `₹${subtotal.toFixed(2)}`;
+    if (cgstEl) cgstEl.textContent = `₹${totalCGST.toFixed(2)}`;
+    if (sgstEl) sgstEl.textContent = `₹${totalSGST.toFixed(2)}`;
+    if (igstEl) igstEl.textContent = `₹${totalIGST.toFixed(2)}`;
+    if (totalEl) totalEl.textContent = `₹${total.toFixed(2)}`;
+}
+
+function updateFormButtons() {
+    const tbody = document.getElementById('itemsTableBody');
+    const hasItems = tbody ? tbody.children.length > 0 : false;
+    const customerSelect = document.getElementById('customer_select');
+    const customerSelected = customerSelect ? customerSelect.value : '';
+    const saveBillBtn = document.getElementById('saveBillBtn');
+    
+    if (saveBillBtn) {
+        saveBillBtn.disabled = !(hasItems && customerSelected);
+    }
+}
+
+function filterProducts() {
+    const searchTerm = document.getElementById('productSearch').value.toLowerCase();
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    const rows = document.querySelectorAll('#productTableBody tr');
+    
+    rows.forEach(row => {
+        const productName = row.cells[0].textContent.toLowerCase();
+        const category = row.getAttribute('data-category');
+        const hsn = row.cells[2].textContent.toLowerCase(); // Updated index for category column
+        
+        const matchesSearch = productName.includes(searchTerm) || hsn.includes(searchTerm);
+        const matchesCategory = !categoryFilter || category === categoryFilter;
+        
+        if (matchesSearch && matchesCategory) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function showQuickAddProduct() {
+    const modal = new bootstrap.Modal(document.getElementById('quickAddProductModal'));
+    modal.show();
+}
+
+function saveQuickProduct() {
+    const name = document.getElementById('quick_product_name').value;
+    const price = document.getElementById('quick_product_price').value;
+    const hsn = document.getElementById('quick_product_hsn').value;
+    const gstRate = document.getElementById('quick_product_gst').value;
+    const unit = document.getElementById('quick_product_unit').value;
+    const category = document.getElementById('quick_product_category').value;
+    const description = document.getElementById('quick_product_description').value;
+    
+    if (!name || !price || !hsn || !gstRate || !unit) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    // Send AJAX request to create product
+    fetch('/api/products/quick-add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({
+            name: name,
+            price: parseFloat(price),
+            hsn_code: hsn,
+            gst_rate: parseFloat(gstRate),
+            unit: unit,
+            category: category,
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Add new product to the products array
+            products.push(data.product);
+            
+            // Add to product table
+            const tbody = document.getElementById('productTableBody');
+            const row = document.createElement('tr');
+            row.setAttribute('data-category', data.product.category);
+            row.innerHTML = `
+                <td>
+                    <strong>${data.product.name}</strong>
+                    ${data.product.description ? `<br><small class="text-muted">${data.product.description}</small>` : ''}
+                </td>
+                <td><span class="badge bg-secondary">${data.product.category}</span></td>
+                <td>${data.product.hsn_code}</td>
+                <td>₹${data.product.price.toFixed(2)}</td>
+                <td>${data.product.gst_rate.toFixed(1)}%</td>
+                <td>${data.product.unit}</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="selectProduct(${data.product.id})">
+                        Select
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('quickAddProductModal'));
+            modal.hide();
+            
+            // Clear form
+            document.getElementById('quickAddProductForm').reset();
+            document.getElementById('quick_product_gst').value = '18';
+            document.getElementById('quick_product_unit').value = 'Nos';
+            document.getElementById('quick_product_category').value = 'General';
+            
+            // Auto-select the new product if we're in product selection mode
+            if (currentItemRow) {
+                selectProduct(data.product.id);
+            }
+        } else {
+            alert('Error adding product: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error adding product');
+    });
+}
+
+function saveQuickCustomer() {
+    const name = document.getElementById('quick_customer_name').value;
+    const email = document.getElementById('quick_customer_email').value;
+    const phone = document.getElementById('quick_customer_phone').value;
+    const address = document.getElementById('quick_customer_address').value;
+    const isGuest = document.getElementById('quick_customer_guest').checked;
+    
+    if (!name) {
+        alert('Customer name is required');
+        return;
+    }
+    
+    // Send AJAX request to create customer
+    fetch('/api/customers/quick-add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            name: name,
+            email: email,
+            phone: phone,
+            address: address,
+            is_guest: isGuest
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Add to customer select
+            const select = document.getElementById('customer_select');
+            const option = document.createElement('option');
+            option.value = data.id;
+            option.textContent = data.name + (isGuest ? ' (Guest)' : '');
+            option.selected = true;
+            select.appendChild(option);
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('quickCustomerModal'));
+            modal.hide();
+            
+            // Clear form
+            document.getElementById('quickCustomerForm').reset();
+            document.getElementById('quick_customer_guest').checked = true;
+            
+            updateFormButtons();
+        } else {
+            alert('Error adding customer');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error adding customer');
+    });
+}
+
+// Event listeners
+const customerSelect = document.getElementById('customer_select');
+if (customerSelect) {
+    customerSelect.addEventListener('change', updateFormButtons);
+}
+</script>
+{% endblock %}

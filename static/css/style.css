@@ -1,0 +1,528 @@
+/* Custom styles for GST Billing Software */
+
+/* Root variables for consistent theming */
+:root {
+    --primary-color: #0d6efd;
+    --success-color: #198754;
+    --info-color: #0dcaf0;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --dark-color: #212529;
+    --light-color: #f8f9fa;
+    
+    /* Spacing */
+    --border-radius: 0.375rem;
+    --box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    --box-shadow-lg: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Global styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    line-height: 1.6;
+}
+
+/* Navigation enhancements */
+.navbar-brand {
+    font-weight: 600;
+    font-size: 1.5rem;
+}
+
+.navbar-nav .nav-link {
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.navbar-nav .nav-link:hover {
+    transform: translateY(-1px);
+}
+
+/* Card enhancements */
+.card {
+    border: none;
+    box-shadow: var(--box-shadow);
+    border-radius: var(--border-radius);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: var(--box-shadow-lg);
+    transform: translateY(-2px);
+}
+
+.card-header {
+    background-color: var(--bs-primary);
+    color: white;
+    border-bottom: none;
+    font-weight: 600;
+}
+
+/* Button enhancements */
+.btn {
+    font-weight: 500;
+    border-radius: var(--border-radius);
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.btn-group .btn {
+    transform: none;
+}
+
+.btn-group .btn:hover {
+    transform: none;
+}
+
+/* Form enhancements */
+.form-control,
+.form-select {
+    border-radius: var(--border-radius);
+    border: 1px solid var(--bs-border-color);
+    transition: all 0.3s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+    transform: translateY(-1px);
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--bs-body-color);
+    margin-bottom: 0.5rem;
+}
+
+/* Table enhancements */
+.table {
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.table thead th {
+    background-color: var(--bs-dark);
+    color: white;
+    font-weight: 600;
+    border: none;
+    padding: 1rem 0.75rem;
+}
+
+.table tbody tr {
+    transition: background-color 0.3s ease;
+}
+
+.table-hover tbody tr:hover {
+    background-color: var(--bs-primary-bg-subtle);
+}
+
+/* Dashboard specific styles */
+.dashboard-stat-card {
+    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-bg-subtle) 100%);
+    border-radius: var(--border-radius);
+    color: white;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.dashboard-stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--box-shadow-lg);
+}
+
+/* Invoice specific styles */
+.invoice-card {
+    max-width: 210mm;
+    margin: 0 auto;
+    background: white;
+    color: black;
+    padding: 20mm;
+}
+
+.invoice-card .company-details h5 {
+    color: var(--bs-primary);
+    margin-bottom: 1rem;
+}
+
+.invoice-card .customer-details h5 {
+    color: var(--bs-dark);
+    margin-bottom: 0.5rem;
+}
+
+.invoice-card .table th {
+    background-color: var(--bs-dark) !important;
+    color: white !important;
+    font-weight: 600;
+}
+
+.invoice-card .totals-section {
+    background-color: var(--bs-light);
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--bs-primary);
+}
+
+.amount-words {
+    background-color: var(--bs-info-bg-subtle);
+    border-left: 4px solid var(--bs-info);
+    font-style: italic;
+}
+
+.terms-section {
+    background-color: var(--bs-warning-bg-subtle);
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--bs-warning);
+}
+
+/* Bill creation form styles */
+#itemsTable th {
+    background-color: var(--bs-dark);
+    color: white;
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 0.75rem 0.5rem;
+}
+
+#itemsTable td {
+    padding: 0.5rem;
+    vertical-align: middle;
+}
+
+#itemsTable input,
+#itemsTable textarea,
+#itemsTable select {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.5rem;
+}
+
+.item-amount {
+    font-size: 0.9rem;
+    color: var(--bs-success);
+}
+
+/* Summary panel */
+.bill-summary {
+    background: linear-gradient(135deg, var(--bs-primary-bg-subtle) 0%, var(--bs-success-bg-subtle) 100%);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    border-left: 4px solid var(--bs-primary);
+}
+
+.bill-summary .summary-total {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--bs-success);
+}
+
+/* Status badges */
+.badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.375rem 0.75rem;
+}
+
+.badge.fs-6 {
+    font-size: 1rem !important;
+    padding: 0.5rem 1rem;
+}
+
+/* Alert enhancements */
+.alert {
+    border: none;
+    border-radius: var(--border-radius);
+    border-left: 4px solid;
+}
+
+.alert-success {
+    border-left-color: var(--bs-success);
+}
+
+.alert-danger {
+    border-left-color: var(--bs-danger);
+}
+
+.alert-warning {
+    border-left-color: var(--bs-warning);
+}
+
+.alert-info {
+    border-left-color: var(--bs-info);
+}
+
+/* Modal enhancements */
+.modal-content {
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow-lg);
+}
+
+.modal-header {
+    background-color: var(--bs-primary);
+    color: white;
+    border-bottom: none;
+}
+
+.modal-header .btn-close {
+    filter: invert(1);
+}
+
+/* Pagination */
+.pagination .page-link {
+    border-radius: var(--border-radius);
+    margin: 0 0.125rem;
+    border: 1px solid var(--bs-border-color);
+    color: var(--bs-primary);
+}
+
+.pagination .page-item.active .page-link {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
+/* Footer */
+footer {
+    margin-top: auto;
+    background: linear-gradient(135deg, var(--bs-dark) 0%, #000 100%);
+}
+
+/* Utility classes */
+.text-primary-light {
+    color: var(--bs-primary-bg-subtle) !important;
+}
+
+.bg-gradient-primary {
+    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary-bg-subtle) 100%);
+}
+
+.bg-gradient-success {
+    background: linear-gradient(135deg, var(--bs-success) 0%, var(--bs-success-bg-subtle) 100%);
+}
+
+.bg-gradient-info {
+    background: linear-gradient(135deg, var(--bs-info) 0%, var(--bs-info-bg-subtle) 100%);
+}
+
+.bg-gradient-warning {
+    background: linear-gradient(135deg, var(--bs-warning) 0%, var(--bs-warning-bg-subtle) 100%);
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid var(--bs-primary);
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .btn-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        margin-bottom: 0.25rem;
+        border-radius: var(--border-radius) !important;
+    }
+    
+    .invoice-card {
+        padding: 10mm;
+    }
+    
+    .dashboard-stat-card {
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .navbar-nav {
+        text-align: center;
+    }
+    
+    .navbar-nav .nav-link {
+        padding: 0.75rem 1rem;
+    }
+}
+
+/* Print styles */
+@media print {
+    body {
+        background: white !important;
+        color: black !important;
+        font-size: 12pt;
+        line-height: 1.4;
+    }
+    
+    .navbar,
+    .btn,
+    .card-header,
+    .pagination,
+    footer,
+    .no-print {
+        display: none !important;
+    }
+    
+    .container {
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+    
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+    }
+    
+    .invoice-card {
+        padding: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+    }
+    
+    .table {
+        font-size: 10pt;
+    }
+    
+    .table th,
+    .table td {
+        padding: 0.25rem !important;
+    }
+    
+    .page-break {
+        page-break-before: always;
+    }
+    
+    .no-page-break {
+        page-break-inside: avoid;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+    }
+}
+
+/* Dark theme specific adjustments */
+[data-bs-theme="dark"] {
+    .invoice-card {
+        background: var(--bs-body-bg);
+        color: var(--bs-body-color);
+    }
+    
+    .amount-words {
+        background-color: var(--bs-dark);
+        border-left-color: var(--bs-info);
+    }
+    
+    .terms-section {
+        background-color: var(--bs-dark);
+        border-left-color: var(--bs-warning);
+    }
+}
+
+/* Animation classes */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+.slide-up {
+    animation: slideUp 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Focus improvements for accessibility */
+.btn:focus,
+.form-control:focus,
+.form-select:focus {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .card {
+        border: 2px solid var(--bs-border-color);
+    }
+    
+    .btn {
+        border-width: 2px;
+    }
+    
+    .table {
+        border: 2px solid var(--bs-border-color);
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

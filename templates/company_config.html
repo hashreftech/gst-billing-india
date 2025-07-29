@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Company Configuration - GST Billing Software{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3">Company Configuration</h1>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-building me-2"></i>Company Details
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            {{ form.name.label(class="form-label") }}
+                            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.name.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            {{ form.state_code.label(class="form-label") }}
+                            {{ form.state_code(class="form-select" + (" is-invalid" if form.state_code.errors else "")) }}
+                            {% if form.state_code.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.state_code.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.address.label(class="form-label") }}
+                        {{ form.address(class="form-control" + (" is-invalid" if form.address.errors else ""), rows="3") }}
+                        {% if form.address.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.address.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.gst_number.label(class="form-label") }}
+                            {{ form.gst_number(class="form-control" + (" is-invalid" if form.gst_number.errors else ""), placeholder="22AAAAA0000A1Z5") }}
+                            {% if form.gst_number.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.gst_number.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">15-digit GST identification number</div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            {{ form.tan_number.label(class="form-label") }}
+                            {{ form.tan_number(class="form-control" + (" is-invalid" if form.tan_number.errors else ""), placeholder="ABCD12345E") }}
+                            {% if form.tan_number.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.tan_number.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">10-digit Tax Account Number (optional)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        {{ form.logo.label(class="form-label") }}
+                        {{ form.logo(class="form-control" + (" is-invalid" if form.logo.errors else "")) }}
+                        {% if form.logo.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.logo.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">Upload company logo (JPG, PNG, GIF - Max 16MB)</div>
+                        
+                        {% if company and company.logo_filename %}
+                            <div class="mt-2">
+                                <small class="text-muted">Current logo: {{ company.logo_filename }}</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Save Configuration
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        {% if company %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Current Configuration
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Company Name:</strong> {{ company.name }}<br>
+                        <strong>GST Number:</strong> {{ company.gst_number }}<br>
+                        {% if company.tan_number %}
+                            <strong>TAN Number:</strong> {{ company.tan_number }}<br>
+                        {% endif %}
+                        <strong>State:</strong> {{ company.state_code }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Address:</strong><br>
+                        {{ company.address|replace('\n', '<br>')|safe }}
+                    </div>
+                </div>
+                
+                {% if company.logo_filename %}
+                <div class="mt-3">
+                    <strong>Logo:</strong> {{ company.logo_filename }}
+                </div>
+                {% endif %}
+                
+                <div class="mt-3">
+                    <small class="text-muted">
+                        Last updated: {{ company.updated_at.strftime('%d/%m/%Y %I:%M %p') }}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-uppercase GST and TAN numbers
+    const gstInput = document.getElementById('gst_number');
+    const tanInput = document.getElementById('tan_number');
+    
+    if (gstInput) {
+        gstInput.addEventListener('input', function() {
+            this.value = this.value.toUpperCase();
+        });
+    }
+    
+    if (tanInput) {
+        tanInput.addEventListener('input', function() {
+            this.value = this.value.toUpperCase();
+        });
+    }
+});
+</script>
+{% endblock %}

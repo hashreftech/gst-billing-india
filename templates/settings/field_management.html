@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+
+{% block title %}Field Management{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3 mb-0">Custom Fields Management</h1>
+            <p class="text-muted">Configure custom fields for your business data</p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('fields.new_field') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add New Field
+            </a>
+        </div>
+    </div>
+    
+    <div class="card shadow">
+        <div class="card-header bg-white py-3">
+            <ul class="nav nav-tabs card-header-tabs">
+                {% for entity_type in entity_types %}
+                <li class="nav-item">
+                    <a class="nav-link {% if entity_type == selected_type %}active{% endif %}"
+                       href="{{ url_for('fields.field_management', type=entity_type) }}">
+                        {{ entity_type|title }} Fields
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="card-body">
+            {% if not fields %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    No custom fields defined for {{ selected_type|title }}.
+                    <a href="{{ url_for('fields.new_field') }}" class="alert-link">Create your first field</a>.
+                </div>
+            {% else %}
+                <div class="table-responsive">
+                    <table class="table table-striped" id="fieldsTable">
+                        <thead class="bg-light">
+                            <tr>
+                                <th>Order</th>
+                                <th>Field Name</th>
+                                <th>Display Name</th>
+                                <th>Type</th>
+                                <th>Required</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="sortable">
+                            {% for field in fields %}
+                            <tr data-field-id="{{ field.id }}">
+                                <td>
+                                    <span class="drag-handle">
+                                        <i class="fas fa-grip-vertical text-muted"></i>
+                                    </span>
+                                    {{ field.field_order }}
+                                </td>
+                                <td>{{ field.field_name }}</td>
+                                <td>{{ field.display_name }}</td>
+                                <td>
+                                    {% if field.field_type == 'text' %}
+                                        <span class="badge bg-primary">Text</span>
+                                    {% elif field.field_type == 'number' %}
+                                        <span class="badge bg-success">Number</span>
+                                    {% elif field.field_type == 'date' %}
+                                        <span class="badge bg-info">Date</span>
+                                    {% elif field.field_type == 'boolean' %}
+                                        <span class="badge bg-warning">Yes/No</span>
+                                    {% elif field.field_type == 'select' %}
+                                        <span class="badge bg-secondary">Selection</span>
+                                    {% else %}
+                                        <span class="badge bg-dark">{{ field.field_type }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if field.required %}
+                                        <span class="badge bg-danger">Required</span>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">Optional</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input toggle-field" 
+                                               type="checkbox" 
+                                               id="toggle-{{ field.id }}" 
+                                               data-field-id="{{ field.id }}" 
+                                               {% if field.enabled %}checked{% endif %}>
+                                        <label class="form-check-label" for="toggle-{{ field.id }}">
+                                            {% if field.enabled %}
+                                                <span class="text-success">Enabled</span>
+                                            {% else %}
+                                                <span class="text-secondary">Disabled</span>
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('fields.edit_field', field_id=field.id) }}" 
+                                           class="btn btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" 
+                                                class="btn btn-outline-danger delete-field" 
+                                                data-field-id="{{ field.id }}" 
+                                                data-field-name="{{ field.display_name }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Delete Confirmation Modal -->
+                <div class="modal fade" id="deleteFieldModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Confirm Delete</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Are you sure you want to delete the field "<span id="fieldNameToDelete"></span>"?</p>
+                                <p class="text-danger">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    This will permanently delete the field and all associated data.
+                                </p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <form id="deleteFieldForm" method="POST">
+                                    <button type="submit" class="btn btn-danger">Delete Field</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize sortable for drag-and-drop reordering
+    var sortable = new Sortable(document.querySelector('.sortable'), {
+        handle: '.drag-handle',
+        animation: 150,
+        onEnd: function() {
+            // Get the new order of field IDs
+            var fieldIds = Array.from(document.querySelectorAll('[data-field-id]'))
+                .map(el => el.dataset.fieldId);
+            
+            // Send the new order to the server
+            fetch('{{ url_for("fields.reorder_fields") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ field_ids: fieldIds })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload the page to show updated order numbers
+                    window.location.reload();
+                } else {
+                    alert('Failed to reorder fields: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while reordering fields.');
+            });
+        }
+    });
+    
+    // Set up toggle field functionality
+    document.querySelectorAll('.toggle-field').forEach(toggle => {
+        toggle.addEventListener('change', function() {
+            const fieldId = this.dataset.fieldId;
+            
+            fetch(`{{ url_for('fields.toggle_field', field_id=0) }}`.replace('0', fieldId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the label
+                    const label = this.nextElementSibling;
+                    if (data.enabled) {
+                        label.innerHTML = '<span class="text-success">Enabled</span>';
+                    } else {
+                        label.innerHTML = '<span class="text-secondary">Disabled</span>';
+                    }
+                } else {
+                    alert('Failed to update field: ' + data.message);
+                    // Reset the toggle to its previous state
+                    this.checked = !this.checked;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while updating the field.');
+                // Reset the toggle to its previous state
+                this.checked = !this.checked;
+            });
+        });
+    });
+    
+    // Set up delete field functionality
+    document.querySelectorAll('.delete-field').forEach(button => {
+        button.addEventListener('click', function() {
+            const fieldId = this.dataset.fieldId;
+            const fieldName = this.dataset.fieldName;
+            
+            // Update the modal
+            document.getElementById('fieldNameToDelete').textContent = fieldName;
+            document.getElementById('deleteFieldForm').action = 
+                `{{ url_for('fields.delete_field', field_id=0) }}`.replace('0', fieldId);
+            
+            // Show the modal
+            new bootstrap.Modal(document.getElementById('deleteFieldModal')).show();
+        });
+    });
+});
+</script>
+{% endblock %}
