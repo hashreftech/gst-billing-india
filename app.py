@@ -27,6 +27,9 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
+# Create upload directory if it doesn't exist
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
 # Configure WTF CSRF protection
 app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit for CSRF tokens
 app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow non-HTTPS in development
@@ -38,11 +41,13 @@ db.init_app(app)
 csrf = CSRFProtect(app)
 
 # Initialize Flask-Login
+from models import Anonymous
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'info'
+login_manager.anonymous_user = Anonymous
 
 @login_manager.user_loader
 def load_user(user_id):

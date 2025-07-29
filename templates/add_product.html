@@ -29,7 +29,7 @@
                 <h5 class="mb-0">Product Information</h5>
             </div>
             <div class="card-body">
-                <form method="POST">
+                <form method="POST" id="productForm">
                     {{ form.hidden_tag() }}
                     
                     <div class="mb-3">
@@ -162,7 +162,7 @@
                     
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('products') }}" class="btn btn-outline-secondary me-md-2">Cancel</a>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary" id="submitProductBtn">
                             {% if product %}
                                 <i class="fas fa-save me-2"></i>Update Product
                             {% else %}
@@ -246,6 +246,22 @@ document.addEventListener('DOMContentLoaded', function() {
         <button type="button" class="btn btn-outline-secondary" onclick="setGSTRate(28)">28%</button>
     `;
     gstRateContainer.appendChild(buttonGroup);
+    
+    // Prevent form submission on Enter key press
+    // This makes the form only submit when the submit button is clicked
+    const productForm = document.getElementById('productForm');
+    productForm.addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            return false;
+        }
+    });
+    
+    // Enable form submission via button click
+    const submitBtn = document.getElementById('submitProductBtn');
+    submitBtn.addEventListener('click', function() {
+        productForm.submit();
+    });
 });
 
 function setGSTRate(rate) {

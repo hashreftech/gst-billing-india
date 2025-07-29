@@ -9,10 +9,28 @@ from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 from datetime import datetime
-from utils import format_currency, get_state_name, number_to_words
+from utils import get_state_name, number_to_words
+from currency_utils import format_rupee
 
-# Register a font that supports the rupee symbol
-pdfmetrics.registerFont(TTFont('DejaVuSans', 'static/fonts/DejaVuSans.ttf'))
+# Set this to True to use 'Rs.' instead of '₹' symbol if fonts don't display properly
+USE_FALLBACK_CURRENCY = False
+
+# Register DejaVu fonts for proper rupee symbol display
+try:
+    # Register the regular font
+    pdfmetrics.registerFont(TTFont('DejaVuSans', 'static/fonts/DejaVuSans.ttf'))
+    
+    # Register the bold font
+    pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', 'static/fonts/DejaVuSans-Bold.ttf'))
+    
+    # Register font family to properly handle bold text
+    pdfmetrics.registerFontFamily('DejaVuSans', normal='DejaVuSans', bold='DejaVuSans-Bold')
+    
+    print("Successfully loaded DejaVu fonts for PDF generation")
+except Exception as e:
+    print(f"Error loading fonts: {e}")
+    # Set to use fallback currency format
+    USE_FALLBACK_CURRENCY = True
 
 def generate_invoice_pdf(bill, company):
     """Generate PDF invoice for a bill"""
@@ -32,6 +50,17 @@ def generate_invoice_pdf(bill, company):
     story = []
     styles = getSampleStyleSheet()
     
+    # Determine which fonts to use based on availability
+    normal_font = 'DejaVuSans' if not USE_FALLBACK_CURRENCY else 'Helvetica'
+    bold_font = 'DejaVuSans-Bold' if not USE_FALLBACK_CURRENCY else 'Helvetica-Bold'
+    
+    # Update styles to use the registered font
+    styles['Normal'].fontName = normal_font
+    styles['Normal'].fontSize = 10
+    styles['Heading1'].fontName = bold_font
+    styles['Heading2'].fontName = bold_font
+    styles['Heading3'].fontName = bold_font
+    
     # Custom styles
     title_style = ParagraphStyle(
         'CustomTitle',
@@ -39,7 +68,8 @@ def generate_invoice_pdf(bill, company):
         fontSize=24,
         spaceAfter=20,
         alignment=TA_CENTER,
-        textColor=colors.darkblue
+        textColor=colors.darkblue,
+        fontName=bold_font
     )
     
     header_style = ParagraphStyle(
@@ -47,14 +77,16 @@ def generate_invoice_pdf(bill, company):
         parent=styles['Heading2'],
         fontSize=14,
         spaceAfter=10,
-        textColor=colors.darkblue
+        textColor=colors.darkblue,
+        fontName=bold_font
     )
     
     normal_style = ParagraphStyle(
         'CustomNormal',
         parent=styles['Normal'],
         fontSize=10,
-        spaceAfter=6
+        spaceAfter=6,
+        fontName=normal_font
     )
     
     # Update styles to use the registered font
@@ -125,6 +157,7 @@ def generate_invoice_pdf(bill, company):
     
     invoice_details_table = Table(invoice_details_data, colWidths=[1.2*inch, 1.8*inch, 1.2*inch, 1.8*inch])
     invoice_details_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), normal_font),
         ('FONTSIZE', (0, 0), (-1, -1), 10),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
         ('RIGHTPADDING', (0, 0), (-1, -1), 0),
@@ -134,6 +167,14 @@ def generate_invoice_pdf(bill, company):
     
     story.append(invoice_details_table)
     story.append(Spacer(1, 20))
+    
+    # Create a special Paragraph style for currency values
+    amount_style = ParagraphStyle(
+        'AmountStyle',
+        parent=normal_style,
+        fontName=normal_font,
+        alignment=TA_RIGHT
+    )
     
     # Items table header
     items_data = [
@@ -151,11 +192,11 @@ def generate_invoice_pdf(bill, company):
             item.hsn_code,
             f"{item.quantity:.2f}",
             item.unit,
-            f"₹{item.rate:.2f}",
-            f"₹{item.amount:.2f}",
+            Paragraph(format_rupee(item.rate, True, USE_FALLBACK_CURRENCY), amount_style),
+            Paragraph(format_rupee(item.amount, True, USE_FALLBACK_CURRENCY), amount_style),
             f"{item.gst_rate:.1f}%",
-            f"₹{gst_amount:.2f}",
-            f"₹{total_amount:.2f}"
+            Paragraph(format_rupee(gst_amount, True, USE_FALLBACK_CURRENCY), amount_style),
+            Paragraph(format_rupee(total_amount, True, USE_FALLBACK_CURRENCY), amount_style)
         ])
     
     # Items table
@@ -169,14 +210,14 @@ def generate_invoice_pdf(bill, company):
         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 0), (-1, 0), bold_font),
         ('FONTSIZE', (0, 0), (-1, -1), 8),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
         
         # Data styling
         ('ALIGN', (1, 1), (1, -1), 'LEFT'),  # Description left aligned
         ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),  # Numbers right aligned
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTNAME', (0, 1), (-1, -1), normal_font),
         ('FONTSIZE', (0, 1), (-1, -1), 8),
         ('GRID', (0, 0), (-1, -1), 1, colors.black),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -186,8 +227,10 @@ def generate_invoice_pdf(bill, company):
     story.append(Spacer(1, 20))
     
     # Totals table
+    # Use Paragraph objects with our special style for currency values
+    # This gives better control over the font used for rendering the rupee symbol
     totals_data = [
-        ['', 'Subtotal:', f"₹{bill.subtotal:.2f}"],
+        ['', 'Subtotal:', Paragraph(format_rupee(bill.subtotal, True, USE_FALLBACK_CURRENCY), amount_style)],
     ]
     
     # Add discount if present
@@ -196,21 +239,23 @@ def generate_invoice_pdf(bill, company):
         if hasattr(bill, 'discount_type') and bill.discount_type == 'percentage' and hasattr(bill, 'discount_value'):
             discount_label += f" ({float(bill.discount_value):.1f}%)"
         discount_label += ":"
-        totals_data.append(['', discount_label, f"-₹{float(bill.discount_amount):.2f}"])
+        discount_value = f"-{format_rupee(float(bill.discount_amount), True, USE_FALLBACK_CURRENCY)}"
+        totals_data.append(['', discount_label, Paragraph(discount_value, amount_style)])
     
     if bill.cgst_amount > 0:
-        totals_data.append(['', 'CGST:', f"₹{bill.cgst_amount:.2f}"])
+        totals_data.append(['', 'CGST:', Paragraph(format_rupee(bill.cgst_amount, True, USE_FALLBACK_CURRENCY), amount_style)])
     if bill.sgst_amount > 0:
-        totals_data.append(['', 'SGST:', f"₹{bill.sgst_amount:.2f}"])
+        totals_data.append(['', 'SGST:', Paragraph(format_rupee(bill.sgst_amount, True, USE_FALLBACK_CURRENCY), amount_style)])
     if bill.igst_amount > 0:
-        totals_data.append(['', 'IGST:', f"₹{bill.igst_amount:.2f}"])
+        totals_data.append(['', 'IGST:', Paragraph(format_rupee(bill.igst_amount, True, USE_FALLBACK_CURRENCY), amount_style)])
     
-    totals_data.append(['', 'Total Amount:', f"₹{bill.total_amount:.2f}"])
+    totals_data.append(['', 'Total Amount:', Paragraph(format_rupee(bill.total_amount, True, USE_FALLBACK_CURRENCY), amount_style)])
     
     totals_table = Table(totals_data, colWidths=[4*inch, 1.5*inch, 1.5*inch])
     totals_table.setStyle(TableStyle([
         ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
-        ('FONTNAME', (1, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, -1), (-1, -1), bold_font),
+        ('FONTNAME', (0, 0), (1, -2), normal_font),
         ('FONTSIZE', (0, 0), (-1, -1), 10),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ('LINEBELOW', (1, -1), (-1, -1), 2, colors.black),

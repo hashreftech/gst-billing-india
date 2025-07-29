@@ -1,9 +1,25 @@
 from extensions import db
 from datetime import datetime
 from sqlalchemy import Text, JSON
-from flask_login import UserMixin
+from flask_login import UserMixin, AnonymousUserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
+
+class Anonymous(AnonymousUserMixin):
+    def is_admin(self):
+        return False
+    
+    def is_manager(self):
+        return False
+        
+    def has_role(self, role):
+        return False
+
+    def get_full_name(self):
+        return "Guest"
+
+    def get_custom_field_value(self, field_name):
+        return None
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users' 
@@ -26,7 +42,12 @@ class User(UserMixin, db.Model):
     
     def check_password(self, password):
         """Check password against hash"""
-        return check_password_hash(self.password_hash, password)
+        if not password or not self.password_hash:  # Handle empty password or empty hash
+            return False
+        try:
+            return check_password_hash(self.password_hash, password)
+        except ValueError:  # Handle invalid hash format
+            return False
     
     def has_role(self, role):
         """Check if user has specific role"""

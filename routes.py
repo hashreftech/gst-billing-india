@@ -51,13 +51,25 @@ def role_required(role):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if not current_user.is_authenticated:
-                return redirect(url_for('login'))
+                flash('Please log in to access this page.', 'warning')
+                return redirect(url_for('login', next=request.url))
+                
+            if role == 'admin' and not hasattr(current_user, 'is_admin'):
+                flash('Access denied. Administrator privileges required.', 'error')
+                return redirect(url_for('dashboard'))
+                
             if role == 'admin' and not current_user.is_admin():
                 flash('Access denied. Administrator privileges required.', 'error')
-                return redirect(url_for('index'))
-            elif role == 'manager' and not current_user.is_manager():
+                return redirect(url_for('dashboard'))
+                
+            if role == 'manager' and not hasattr(current_user, 'is_manager'):
                 flash('Access denied. Manager privileges required.', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('dashboard'))
+                
+            if role == 'manager' and not current_user.is_manager():
+                flash('Access denied. Manager privileges required.', 'error')
+                return redirect(url_for('dashboard'))
+                
             return f(*args, **kwargs)
         return decorated_function
     return decorator
@@ -65,31 +77,36 @@ def role_required(role):
 # Authentication Routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """User login"""
+    # Redirect if already logged in
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
     
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
         
-        if user and user.check_password(form.password.data) and user.is_active:
-            login_user(user, remember=form.remember_me.data)
-            user.last_login = datetime.utcnow()
-            db.session.commit()
+        if user and user.check_password(form.password.data):
+            # Check if user is active
+            if not user.is_active:
+                flash('Your account is deactivated. Please contact administrator.', 'danger')
+                return render_template('login.html', title='Login', form=form)
             
+            # Log the user in
+            login_user(user, remember=form.remember_me.data if hasattr(form, 'remember_me') else False)
+            
+            # Redirect to next page if specified, otherwise index (dashboard)
             next_page = request.args.get('next')
-            if not next_page or not next_page.startswith('/'):
-                next_page = url_for('index')
-            
-            flash(f'Welcome back, {user.get_full_name()}!', 'success')
-            return redirect(next_page)
-        else:
-            flash('Invalid username or password.', 'error')
+            flash('Login successful!', 'success')
+            return redirect(next_page) if next_page else redirect(url_for('index'))
+        
+        # Invalid credentials
+        flash('Invalid username or password', 'danger')
     
-    return render_template('login.html', form=form)
+    # Show login form
+    return render_template('login.html', title='Login', form=form)
 
 @app.route('/logout')
+@login_required
 def logout():
     """User logout"""
     logout_user()
@@ -138,12 +155,27 @@ def company_config():
                 # Create upload directory if it doesn't exist
                 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
                 
+                # Delete old logo file if it exists
+                if company.logo_path:
+                    old_logo_path = os.path.join(app.config['UPLOAD_FOLDER'], company.logo_path)
+                    if os.path.exists(old_logo_path):
+                        try:
+                            os.remove(old_logo_path)
+                        except:
+                            pass  # Ignore errors during removal
+                
                 form.logo.data.save(filepath)
-                company.logo_filename = unique_filename
+                company.logo_path = unique_filename
         
         db.session.commit()
         flash('Company configuration updated successfully!', 'success')
         return redirect(url_for('company_config'))
+    
+    # Check if logo file exists
+    if company and company.logo_path:
+        logo_path = os.path.join(app.config['UPLOAD_FOLDER'], company.logo_path)
+        if not os.path.exists(logo_path):
+            flash('Warning: Logo file not found on disk.', 'warning')
     
     return render_template('company_config.html', form=form, company=company)
 
@@ -842,11 +874,13 @@ def create_bill():
                     quantity=safe_decimal(quantity_val, '1'),
                     unit=get_field_value(item_form.unit),
                     rate=safe_decimal(rate_val, '0'),
+                    unit_price=safe_decimal(rate_val, '0'),  # Set unit_price same as rate
                     gst_rate=safe_decimal(gst_rate_val, '18')
                 )
                 
                 # Calculate amounts
                 item.amount = item.quantity * item.rate
+                item.taxable_amount = item.amount  # Set taxable_amount same as amount for legacy support
                 subtotal += item.amount
                 
                 # Calculate GST
@@ -860,6 +894,11 @@ def create_bill():
                 item.cgst_amount = gst_amounts['cgst']
                 item.sgst_amount = gst_amounts['sgst']
                 item.igst_amount = gst_amounts['igst']
+
+                # Set legacy fields
+                item.gst_amount = item.cgst_amount + item.sgst_amount + item.igst_amount
+                item.total_amount = item.amount + item.gst_amount
+
                 
                 total_cgst += item.cgst_amount
                 total_sgst += item.sgst_amount
@@ -880,7 +919,9 @@ def create_bill():
         bill.cgst_amount = total_cgst
         bill.sgst_amount = total_sgst
         bill.igst_amount = total_igst
+        bill.gst_amount = total_cgst + total_sgst + total_igst  # Calculate total GST amount
         bill.total_amount = subtotal - discount_amount + total_cgst + total_sgst + total_igst
+        bill.final_amount = bill.total_amount  # Set final_amount same as total_amount for legacy support
         
         db.session.add(bill)
         db.session.commit()
@@ -1007,11 +1048,13 @@ def edit_bill(id):
                     quantity=safe_decimal(quantity_val, '1'),
                     unit=get_field_value(item_form.unit),
                     rate=safe_decimal(rate_val, '0'),
+                    unit_price=safe_decimal(rate_val, '0'),  # Set unit_price same as rate
                     gst_rate=safe_decimal(gst_rate_val, '18')
                 )
                 
                 # Calculate amounts
                 item.amount = item.quantity * item.rate
+                item.taxable_amount = item.amount  # Set taxable_amount same as amount for legacy support
                 subtotal += item.amount
                 
                 # Calculate GST
@@ -1025,6 +1068,11 @@ def edit_bill(id):
                 item.cgst_amount = gst_amounts['cgst']
                 item.sgst_amount = gst_amounts['sgst']
                 item.igst_amount = gst_amounts['igst']
+
+                # Set legacy fields
+                item.gst_amount = item.cgst_amount + item.sgst_amount + item.igst_amount
+                item.total_amount = item.amount + item.gst_amount
+
                 
                 total_cgst += item.cgst_amount
                 total_sgst += item.sgst_amount
@@ -1045,7 +1093,9 @@ def edit_bill(id):
         bill.cgst_amount = total_cgst
         bill.sgst_amount = total_sgst
         bill.igst_amount = total_igst
+        bill.gst_amount = total_cgst + total_sgst + total_igst  # Calculate total GST amount
         bill.total_amount = subtotal - discount_amount + total_cgst + total_sgst + total_igst
+        bill.final_amount = bill.total_amount  # Set final_amount same as total_amount for legacy support
         
         # Update modified timestamp
         bill.updated_at = datetime.now()
@@ -1258,7 +1308,7 @@ def manage_categories():
     from forms import CategoryForm
 
     form = CategoryForm()
-    categories = Category.query.order_by(Category.date_added.desc()).all()
+    categories = Category.query.order_by(Category.created_at.desc()).all()
 
     if form.validate_on_submit():
         new_category = Category(category_name=form.category_name.data)
@@ -1310,6 +1360,11 @@ def make_session_permanent():
 def csrf_token():
     """Get CSRF token for AJAX requests"""
     return jsonify({'csrf_token': generate_csrf()})
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    """Serve uploaded files"""
+    return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
 @app.errorhandler(404)
 def not_found_error(error):

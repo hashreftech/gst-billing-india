@@ -149,6 +149,9 @@ SQLAlchemy==2.0.41
 typing_extensions==4.14.1
 Werkzeug==3.1.3
 WTForms==3.2.1
+alembic==1.13.1
+openpyxl==3.1.2
+gunicorn==23.0.0
 ```
 
 Then install:
@@ -220,6 +223,17 @@ The application will be available at: `http://localhost:5000`
 ### Permission Issues
 1. Check file permissions: `chmod +x main.py`
 2. Ensure uploads directory exists: `mkdir uploads`
+
+### PDF Generation Issues
+If you see black boxes instead of rupee symbols (₹) in PDF invoices:
+
+1. The application has been updated to use DejaVu fonts, which properly support the rupee symbol
+2. Make sure all DejaVu font files are installed in the `static/fonts/` directory
+3. If you still see issues:
+   - Open `pdf_generator.py` and set `USE_FALLBACK_CURRENCY = True` near the top of the file
+   - This will use "Rs." notation instead of the rupee symbol
+4. You can download DejaVu fonts from their official GitHub repository if needed:
+   - https://github.com/dejavu-fonts/dejavu-fonts/releases
 
 ### Port Already in Use
 If port 5000 is busy, change it in main.py or use:
