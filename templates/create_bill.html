@@ -180,7 +180,7 @@
     <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-4">
         <a href="{{ url_for('bills') }}" class="btn btn-outline-secondary me-md-2">Cancel</a>
         <button type="submit" class="btn btn-primary" id="saveBillBtn" disabled>
-            <i class="fas fa-save me-2"></i>Create Bill
+            <i class="fas fa-save me-2"></i>{% if edit_mode %}Update Bill{% else %}Create Bill{% endif %}
         </button>
     </div>
 </form>
@@ -238,7 +238,13 @@
             <div class="modal-body">
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <input type="text" class="form-control" id="productSearch" placeholder="Search products...">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="productSearch" placeholder="Search products..." autocomplete="off">
+                            <button class="btn btn-outline-primary" type="button" id="searchProductBtn">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                        <div class="text-muted small mt-1">Type at least 2 characters to search</div>
                     </div>
                     <div class="col-md-4">
                         <select class="form-select" id="categoryFilter">
@@ -262,6 +268,12 @@
                         </button>
                     </div>
                 </div>
+                <div id="productLoadingIndicator" class="text-center py-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading products...</p>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -276,28 +288,13 @@
                             </tr>
                         </thead>
                         <tbody id="productTableBody">
-                            {% for product in products %}
-                            <tr data-category="{{ product.category or 'General' }}">
-                                <td>
-                                    <strong>{{ product.name }}</strong>
-                                    {% if product.description %}
-                                        <br><small class="text-muted">{{ product.description }}</small>
-                                    {% endif %}
-                                </td>
-                                <td><span class="badge bg-secondary">{{ product.category or 'General' }}</span></td>
-                                <td>{{ product.hsn_code }}</td>
-                                <td>₹{{ "%.2f"|format(product.price|float) }}</td>
-                                <td>{{ "%.1f"|format(product.gst_rate|float) }}%</td>
-                                <td>{{ product.unit }}</td>
-                                <td>
-                                    <button type="button" class="btn btn-sm btn-primary" onclick="selectProduct({{ product.id }})">
-                                        Select
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                            <!-- Products will be loaded dynamically via AJAX -->
                         </tbody>
                     </table>
+                </div>
+                <div id="noProductsMessage" class="text-center py-4" style="display: none;">
+                    <i class="fas fa-search fs-1 text-muted mb-2"></i>
+                    <p class="text-muted">No products found matching your search criteria.</p>
                 </div>
             </div>
         </div>
@@ -382,7 +379,16 @@
 // Global variables
 let itemCounter = 0;
 let currentItemRow = null;
-const products = {{ products|tojson }};
+window.cachedProducts = [];
+
+// Initialize with any pre-loaded products if provided
+{% if products %}
+try {
+    window.cachedProducts = {{ products|tojson }}.slice(0, 20); // Only keep first 20 for initial cache
+} catch (e) {
+    console.error('Error initializing cached products:', e);
+}
+{% endif %}
 
 // Initialize form
 document.addEventListener('DOMContentLoaded', function() {
@@ -411,9 +417,14 @@ document.addEventListener('DOMContentLoaded', function() {
         {{ item.sgst_rate if item.sgst_rate else item.gst_rate/2 }}
     );
     {% endfor %}
-    // Calculate totals after loading all items
+    // Calculate totals after loading all items and enable the save button
     setTimeout(() => {
         updateSummary();
+        // Enable save button for edit mode
+        const saveBillBtn = document.getElementById('saveBillBtn');
+        if (saveBillBtn) {
+            saveBillBtn.disabled = false;
+        }
     }, 200);
     {% elif duplicate_bill and duplicate_bill.items %}
     {% for item in duplicate_bill.items %}
@@ -439,8 +450,85 @@ document.addEventListener('DOMContentLoaded', function() {
     {% endif %}
     
     // Initialize product search and filters
-    document.getElementById('productSearch').addEventListener('input', filterProducts);
-    document.getElementById('categoryFilter').addEventListener('change', filterProducts);
+    const productSearchInput = document.getElementById('productSearch');
+    if (productSearchInput) {
+        productSearchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                filterProducts();
+            }
+        });
+        
+        // Add search delay for typing (debounce)
+        let searchTimeout = null;
+        productSearchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(function() {
+                const searchTerm = productSearchInput.value.trim();
+                if (searchTerm.length >= 2) {
+                    filterProducts();
+                }
+            }, 500); // 500ms delay after typing stops
+        });
+    }
+    
+    // Search button click handler
+    const searchProductBtn = document.getElementById('searchProductBtn');
+    if (searchProductBtn) {
+        searchProductBtn.addEventListener('click', filterProducts);
+    }
+    
+    // Category filter
+    const categoryFilterSelect = document.getElementById('categoryFilter');
+    if (categoryFilterSelect) {
+        categoryFilterSelect.addEventListener('change', filterProducts);
+    }
+    
+    // Initial product load when modal opens
+    document.getElementById('productModal').addEventListener('shown.bs.modal', function() {
+        // Only load initial products if not already searching
+        const searchTerm = document.getElementById('productSearch').value.trim();
+        if (searchTerm.length < 2) {
+            // Show popular/recent products on modal open
+            fetch('/api/products/recent')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('productTableBody');
+                    tbody.innerHTML = '';
+                    
+                    if (data.products && data.products.length > 0) {
+                        data.products.forEach(product => {
+                            const row = document.createElement('tr');
+                            row.dataset.category = product.category || 'General';
+                            
+                            row.innerHTML = `
+                                <td>
+                                    <strong>${escapeHtml(product.name)}</strong>
+                                    ${product.description ? `<br><small class="text-muted">${escapeHtml(product.description)}</small>` : ''}
+                                </td>
+                                <td><span class="badge bg-secondary">${escapeHtml(product.category || 'General')}</span></td>
+                                <td>${escapeHtml(product.hsn_code)}</td>
+                                <td>₹${parseFloat(product.price).toFixed(2)}</td>
+                                <td>${parseFloat(product.gst_rate).toFixed(1)}%</td>
+                                <td>${escapeHtml(product.unit)}</td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="selectProduct(${product.id})">
+                                        Select
+                                    </button>
+                                </td>
+                            `;
+                            
+                            tbody.appendChild(row);
+                        });
+                    } else {
+                        document.getElementById('noProductsMessage').style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching recent products:', error);
+                });
+        }
+    });
 });
 
 function addNewItem() {
@@ -449,10 +537,12 @@ function addNewItem() {
     const row = document.createElement('tr');
     row.id = `item-row-${itemCounter}`;
     
-    // Create product options from the products array
+    // Create basic product options dropdown (will be populated via AJAX when needed)
     let productOptions = '<option value="">Select Product</option>';
-    if (typeof products !== 'undefined') {
-        products.forEach(product => {
+    
+    // Add any cached products if available (loaded via AJAX previously)
+    if (window.cachedProducts && window.cachedProducts.length > 0) {
+        window.cachedProducts.forEach(product => {
             productOptions += `<option value="${product.id}" 
                 data-name="${product.name}" 
                 data-hsn="${product.hsn_code}" 
@@ -586,12 +676,71 @@ function loadExistingItem(productId, quantity, productName, hsnCode, unit, rate,
     if (cgstRate === undefined) cgstRate = gstRate / 2;
     if (sgstRate === undefined) sgstRate = gstRate / 2;
     
-    // Create product options from the products array
+    // Create basic product options dropdown
     let productOptions = '<option value="">Select Product</option>';
-    if (typeof products !== 'undefined') {
-        products.forEach(product => {
-            const selected = product.id === productId ? 'selected' : '';
-            productOptions += `<option value="${product.id}" ${selected} 
+    
+    // Initialize cached products array if not exists
+    if (!window.cachedProducts) {
+        window.cachedProducts = [];
+    }
+    
+    // If we have a product ID, fetch the details and add to cached products
+    if (productId > 0) {
+        // Check if we already have this product in cache
+        const cachedProduct = window.cachedProducts.find(p => p.id === productId);
+        
+        if (!cachedProduct) {
+            // Add a temporary option while we load the product
+            productOptions += `<option value="${productId}" selected>${productName}</option>`;
+            
+            // Fetch the product details asynchronously
+            fetch(`/api/products/${productId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.product) {
+                        // Add to cache for future use
+                        window.cachedProducts.push(data.product);
+                        
+                        // Update the option with complete data
+                        const selectElement = row.querySelector(`select[name*="product_id"]`);
+                        if (selectElement) {
+                            const option = selectElement.querySelector(`option[value="${productId}"]`);
+                            if (option) {
+                                option.textContent = `${data.product.name} - ₹${data.product.price.toFixed(2)}`;
+                                option.dataset.name = data.product.name;
+                                option.dataset.hsn = data.product.hsn_code;
+                                option.dataset.unit = data.product.unit;
+                                option.dataset.rate = data.product.price;
+                                option.dataset.gst = data.product.gst_rate;
+                                option.dataset.cgst = data.product.cgst_rate || (data.product.gst_rate / 2);
+                                option.dataset.sgst = data.product.sgst_rate || (data.product.gst_rate / 2);
+                                option.dataset.description = data.product.description || '';
+                            }
+                        }
+                    }
+                })
+                .catch(error => console.error('Error fetching product:', error));
+        } else {
+            // We have the product in cache, add it as selected
+            productOptions += `<option value="${cachedProduct.id}" selected 
+                data-name="${cachedProduct.name}" 
+                data-hsn="${cachedProduct.hsn_code}" 
+                data-unit="${cachedProduct.unit}" 
+                data-rate="${cachedProduct.price}" 
+                data-gst="${cachedProduct.gst_rate}" 
+                data-cgst="${cachedProduct.cgst_rate || cachedProduct.gst_rate/2}" 
+                data-sgst="${cachedProduct.sgst_rate || cachedProduct.gst_rate/2}" 
+                data-description="${cachedProduct.description || ''}">${cachedProduct.name} - ₹${cachedProduct.price.toFixed(2)}</option>`;
+        }
+    } else if (productName) {
+        // Custom product (no ID)
+        productOptions += `<option value="0" selected>${productName}</option>`;
+    }
+    
+    // Add any other cached products we might have
+    window.cachedProducts.forEach(product => {
+        if (product.id !== productId) {
+            productOptions += `<option value="${product.id}" 
                 data-name="${product.name}" 
                 data-hsn="${product.hsn_code}" 
                 data-unit="${product.unit}" 
@@ -599,9 +748,9 @@ function loadExistingItem(productId, quantity, productName, hsnCode, unit, rate,
                 data-gst="${product.gst_rate}" 
                 data-cgst="${product.cgst_rate || product.gst_rate/2}" 
                 data-sgst="${product.sgst_rate || product.gst_rate/2}" 
-                data-description="${product.description || ''}">${product.name} - ₹${product.price}</option>`;
-        });
-    }
+                data-description="${product.description || ''}">${product.name} - ₹${product.price.toFixed(2)}</option>`;
+        }
+    });
     
     row.innerHTML = `
         <td>
@@ -684,20 +833,79 @@ function openProductModal(itemId) {
 }
 
 function selectProduct(productId) {
-    const product = products.find(p => p.id === productId);
-    if (product && currentItemRow) {
+    if (currentItemRow) {
         const row = document.getElementById(`item-row-${currentItemRow}`);
-        const selectElement = row.querySelector('select[name*="product_id"]');
+        if (!row) return;
         
-        // Set the select value
-        selectElement.value = product.id;
-        
-        // Trigger the change event to update all fields
-        updateItemFromProduct(selectElement, currentItemRow);
-        
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
-        modal.hide();
+        // Get product details via AJAX
+        fetch(`/api/products/${productId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data.product) {
+                    throw new Error('Product not found');
+                }
+                
+                const product = data.product;
+                const selectElement = row.querySelector('select[name*="product_id"]');
+                
+                // First, create a new option for this product if it doesn't exist
+                let option = selectElement.querySelector(`option[value="${product.id}"]`);
+                if (!option) {
+                    option = document.createElement('option');
+                    option.value = product.id;
+                    option.textContent = `${product.name} - ₹${product.price.toFixed(2)}`;
+                    option.dataset.name = product.name;
+                    option.dataset.hsn = product.hsn_code;
+                    option.dataset.unit = product.unit;
+                    option.dataset.rate = product.price;
+                    option.dataset.gst = product.gst_rate;
+                    option.dataset.cgst = product.cgst_rate || (product.gst_rate / 2);
+                    option.dataset.sgst = product.sgst_rate || (product.gst_rate / 2);
+                    option.dataset.description = product.description || '';
+                    selectElement.appendChild(option);
+                }
+                
+                // Set the select value
+                selectElement.value = product.id;
+                
+                // Update all fields directly
+                row.querySelector('.hsn-display').textContent = product.hsn_code;
+                row.querySelector('.unit-display').textContent = product.unit;
+                row.querySelector('.rate-display').textContent = `₹${parseFloat(product.price).toFixed(2)}`;
+                
+                const cgstRate = product.cgst_rate || (product.gst_rate / 2);
+                const sgstRate = product.sgst_rate || (product.gst_rate / 2);
+                
+                row.querySelector('.cgst-display').textContent = `${cgstRate}%`;
+                row.querySelector('.sgst-display').textContent = `${sgstRate}%`;
+                row.querySelector('.product-details').textContent = product.description || '';
+                
+                // Update hidden fields
+                row.querySelector('.hsn-field').value = product.hsn_code;
+                row.querySelector('.unit-field').value = product.unit;
+                row.querySelector('.rate-field').value = product.price;
+                row.querySelector('.cgst-field').value = cgstRate;
+                row.querySelector('.sgst-field').value = sgstRate;
+                row.querySelector('.gst-field').value = product.gst_rate;
+                row.querySelector('.product-name-field').value = product.name;
+                row.querySelector('.description-field').value = product.description || '';
+                
+                // Recalculate amount
+                calculateItemAmount(currentItemRow);
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+                modal.hide();
+            })
+            .catch(error => {
+                console.error('Error fetching product:', error);
+                alert('Error loading product details. Please try again.');
+            });
     }
 }
 
@@ -827,29 +1035,94 @@ function updateFormButtons() {
     const saveBillBtn = document.getElementById('saveBillBtn');
     
     if (saveBillBtn) {
+        // In edit mode, we already have a bill, so enable the button if a customer is selected
+        {% if edit_mode %}
+        saveBillBtn.disabled = !customerSelected;
+        {% else %}
         saveBillBtn.disabled = !(hasItems && customerSelected);
+        {% endif %}
     }
 }
 
 function filterProducts() {
-    const searchTerm = document.getElementById('productSearch').value.toLowerCase();
+    const searchTerm = document.getElementById('productSearch').value.trim();
     const categoryFilter = document.getElementById('categoryFilter').value;
-    const rows = document.querySelectorAll('#productTableBody tr');
     
-    rows.forEach(row => {
-        const productName = row.cells[0].textContent.toLowerCase();
-        const category = row.getAttribute('data-category');
-        const hsn = row.cells[2].textContent.toLowerCase(); // Updated index for category column
-        
-        const matchesSearch = productName.includes(searchTerm) || hsn.includes(searchTerm);
-        const matchesCategory = !categoryFilter || category === categoryFilter;
-        
-        if (matchesSearch && matchesCategory) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
-    });
+    // Skip search if term is too short
+    if (searchTerm.length < 2 && !categoryFilter) {
+        return;
+    }
+    
+    // Show loading indicator and hide messages
+    document.getElementById('productLoadingIndicator').style.display = 'block';
+    document.getElementById('noProductsMessage').style.display = 'none';
+    
+    // Clear current table content
+    document.getElementById('productTableBody').innerHTML = '';
+    
+    // Send AJAX request to search for products
+    fetch(`/api/products/search?term=${encodeURIComponent(searchTerm)}&category=${encodeURIComponent(categoryFilter)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const tbody = document.getElementById('productTableBody');
+            
+            // Hide loading indicator
+            document.getElementById('productLoadingIndicator').style.display = 'none';
+            
+            // Check if we got any products
+            if (data.products && data.products.length > 0) {
+                // Populate the table with products
+                data.products.forEach(product => {
+                    const row = document.createElement('tr');
+                    row.dataset.category = product.category || 'General';
+                    
+                    row.innerHTML = `
+                        <td>
+                            <strong>${escapeHtml(product.name)}</strong>
+                            ${product.description ? `<br><small class="text-muted">${escapeHtml(product.description)}</small>` : ''}
+                        </td>
+                        <td><span class="badge bg-secondary">${escapeHtml(product.category || 'General')}</span></td>
+                        <td>${escapeHtml(product.hsn_code)}</td>
+                        <td>₹${parseFloat(product.price).toFixed(2)}</td>
+                        <td>${parseFloat(product.gst_rate).toFixed(1)}%</td>
+                        <td>${escapeHtml(product.unit)}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="selectProduct(${product.id})">
+                                Select
+                            </button>
+                        </td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+            } else {
+                // Show no products message
+                document.getElementById('noProductsMessage').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching products:', error);
+            document.getElementById('productLoadingIndicator').style.display = 'none';
+            document.getElementById('noProductsMessage').style.display = 'block';
+            document.getElementById('noProductsMessage').querySelector('p').textContent = 'Error loading products. Please try again.';
+        });
+}
+
+// Helper function to prevent XSS
+function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return unsafe
+        .toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 function showQuickAddProduct() {

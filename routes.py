@@ -929,9 +929,13 @@ def create_bill():
         flash('Bill created successfully!', 'success')
         return redirect(url_for('view_bill', id=bill.id))
     
+    # Just get the most recent/popular products for initial view
+    # Rest will be loaded via AJAX as needed
+    recent_products = Product.query.order_by(Product.created_at.desc()).limit(20).all()
+    
     # Convert products to JSON-serializable format
     products_data = []
-    for p in products:
+    for p in recent_products:
         products_data.append({
             'id': p.id,
             'name': p.name,
@@ -939,7 +943,8 @@ def create_bill():
             'price': float(p.price),
             'hsn_code': p.hsn_code,
             'gst_rate': float(p.gst_rate),
-            'unit': p.unit
+            'unit': p.unit,
+            'category': p.category.category_name if p.category else 'General'
         })
     
     return render_template('create_bill.html', form=form, products=products_data, duplicate_bill=duplicate_bill)
@@ -989,6 +994,7 @@ def edit_bill(id):
     for item in bill.items:
         item_form = BillItemForm()
         item_form.product_id.choices = product_choices
+        item_form.product_id.data = item.product_id if item.product_id else 0
         item_form.product_name.data = item.product_name
         item_form.description.data = item.description
         item_form.hsn_code.data = item.hsn_code
@@ -1105,9 +1111,26 @@ def edit_bill(id):
         flash('Bill updated successfully!', 'success')
         return redirect(url_for('view_bill', id=bill.id))
     
+    # Get essential product data for initialization
+    essential_products = []
+    
+    # Include products that are in the current bill
+    bill_product_ids = [item.product_id for item in bill.items if item.product_id]
+    if bill_product_ids:
+        bill_products = Product.query.filter(Product.id.in_(bill_product_ids)).all()
+        essential_products.extend(bill_products)
+    
+    # Add a few recent products to provide initial options
+    recent_count = 20 - len(essential_products)
+    if recent_count > 0:
+        recent_products = Product.query.filter(~Product.id.in_(bill_product_ids)) \
+            .order_by(Product.created_at.desc()) \
+            .limit(recent_count).all()
+        essential_products.extend(recent_products)
+    
     # Convert products to JSON-serializable format
     products_data = []
-    for p in products:
+    for p in essential_products:
         products_data.append({
             'id': p.id,
             'name': p.name,
@@ -1115,7 +1138,8 @@ def edit_bill(id):
             'price': float(p.price),
             'hsn_code': p.hsn_code,
             'gst_rate': float(p.gst_rate),
-            'unit': p.unit
+            'unit': p.unit,
+            'category': p.category.category_name if p.category else 'General'
         })
     
     return render_template('create_bill.html', form=form, products=products_data, edit_mode=True, bill=bill)
@@ -1144,14 +1168,87 @@ def get_product_api(id):
     """API endpoint to get product details"""
     product = Product.query.get_or_404(id)
     return jsonify({
-        'id': product.id,
-        'name': product.name,
-        'description': product.description,
-        'price': float(product.price),
-        'hsn_code': product.hsn_code,
-        'gst_rate': float(product.gst_rate),
-        'unit': product.unit
+        'product': {
+            'id': product.id,
+            'name': product.name,
+            'description': product.description,
+            'price': float(product.price),
+            'hsn_code': product.hsn_code,
+            'gst_rate': float(product.gst_rate),
+            'unit': product.unit,
+            'category': product.category.name if product.category else 'General'
+        }
     })
+    
+@app.route('/api/products/search')
+@login_required
+def search_products_api():
+    """API endpoint to search for products"""
+    term = request.args.get('term', '').strip()
+    category = request.args.get('category', '')
+    
+    # Base query
+    query = Product.query
+    
+    # Apply search term filter
+    if term:
+        query = query.filter(
+            db.or_(
+                Product.name.ilike(f"%{term}%"),
+                Product.description.ilike(f"%{term}%"),
+                Product.hsn_code.ilike(f"%{term}%")
+            )
+        )
+    
+    # Apply category filter
+    if category:
+        query = query.join(Category).filter(Category.name == category)
+    
+    # Get results (limit to 100 for performance)
+    products = query.order_by(Product.name).limit(100).all()
+    
+    # Format results
+    result = {
+        'products': [
+            {
+                'id': p.id,
+                'name': p.name,
+                'description': p.description,
+                'price': float(p.price),
+                'hsn_code': p.hsn_code,
+                'gst_rate': float(p.gst_rate),
+                'unit': p.unit,
+                'category': p.category.category_name if p.category else 'General'
+            } for p in products
+        ]
+    }
+    
+    return jsonify(result)
+
+@app.route('/api/products/recent')
+@login_required
+def recent_products_api():
+    """API endpoint to get recent/popular products"""
+    # Get recently created products
+    recent_products = Product.query.order_by(Product.created_at.desc()).limit(20).all()
+    
+    # Format results
+    result = {
+        'products': [
+            {
+                'id': p.id,
+                'name': p.name,
+                'description': p.description,
+                'price': float(p.price),
+                'hsn_code': p.hsn_code,
+                'gst_rate': float(p.gst_rate),
+                'unit': p.unit,
+                'category': p.category.category_name if p.category else 'General'
+            } for p in recent_products
+        ]
+    }
+    
+    return jsonify(result)
 
 @app.route('/api/customers/quick-add', methods=['POST'])
 def quick_add_customer():
