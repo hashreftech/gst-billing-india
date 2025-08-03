@@ -302,6 +302,7 @@ class FieldDefinition(db.Model):
     display_name = db.Column(db.String(100), nullable=False)
     field_type = db.Column(db.String(20), nullable=False)  # 'text', 'number', 'date', 'boolean', 'select'
     required = db.Column(db.Boolean, default=False)
+    searchable = db.Column(db.Boolean, default=False)
     enabled = db.Column(db.Boolean, default=True)
     field_order = db.Column(db.Integer, default=0)
     options = db.Column(Text)  # JSON string for select options

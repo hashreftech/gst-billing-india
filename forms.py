@@ -290,35 +290,10 @@ class FieldDefinitionForm(FlaskForm):
         ('boolean', 'Boolean'),
         ('select', 'Select')
     ])
-    required = BooleanField('Required Field')
-    enabled = BooleanField('Enabled', default=True)
-    field_order = IntegerField('Display Order', default=0)
-    options = TextAreaField('Options (one per line)', validators=[Optional()])
-    validation_regex = StringField('Validation Pattern', validators=[Optional()])
-    help_text = TextAreaField('Help Text', validators=[Optional()])
-
-class FieldDefinitionForm(FlaskForm):
-    entity_type = SelectField('Entity Type', validators=[DataRequired()], choices=[
-        ('product', 'Product'),
-        ('customer', 'Customer'),
-        ('bill', 'Bill')
-    ])
-    field_name = StringField('Field Name', validators=[
-        DataRequired(),
-        Length(min=2, max=50),
-        Regexp(r'^[a-z][a-z0-9_]*$', message='Field name must start with a lowercase letter and contain only lowercase letters, numbers, and underscores.')
-    ])
-    display_name = StringField('Display Name', validators=[DataRequired(), Length(min=2, max=100)])
-    field_type = SelectField('Field Type', validators=[DataRequired()], choices=[
-        ('text', 'Text'),
-        ('number', 'Number'),
-        ('date', 'Date'),
-        ('boolean', 'Boolean'),
-        ('select', 'Select')
-    ])
     field_order = IntegerField('Display Order', default=0, validators=[NumberRange(min=0)])
-    required = BooleanField('Required')
+    required = BooleanField('Required Field')
+    searchable = BooleanField('Searchable', description='Enable this for barcode or serial number fields that should be searchable')
     enabled = BooleanField('Enabled', default=True)
-    options = TextAreaField('Options', validators=[Optional()])
+    options = TextAreaField('Options (one per line)', validators=[Optional()])
     validation_regex = StringField('Validation Pattern', validators=[Optional()])
     help_text = TextAreaField('Help Text', validators=[Optional()])

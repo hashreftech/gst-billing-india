@@ -141,6 +141,7 @@ def upgrade() -> None:
         sa.Column('display_name', sa.String(length=100), nullable=False),
         sa.Column('field_type', sa.String(length=20), nullable=False),
         sa.Column('required', sa.Boolean(), nullable=True, server_default='false'),
+        sa.Column('searchable', sa.Boolean(), nullable=True, server_default='false'),
         sa.Column('enabled', sa.Boolean(), nullable=True, server_default='true'),
         sa.Column('field_order', sa.Integer(), nullable=True, server_default='0'),
         sa.Column('options', sa.Text(), nullable=True),

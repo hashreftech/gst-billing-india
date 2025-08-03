@@ -257,38 +257,103 @@ def initialize_data():
             else:
                 print("Customers already exist, skipping sample customer creation")
             
-            # Create sample product if none exist
+            # Create sample products if none exist
             product_count = Product.query.count()
             if product_count == 0:
-                # Create default category if needed
-                category = Category.query.filter_by(category_name="General").first()
-                if not category:
-                    category = Category(
+                # Create clothing categories
+                categories = {}
+                for category_name in ["Men's Wear", "Women's Wear", "Kids Wear", "Accessories", "Footwear"]:
+                    category = Category.query.filter_by(category_name=category_name).first()
+                    if not category:
+                        category = Category(
+                            category_name=category_name,
+                            created_at=datetime.datetime.now(),
+                            updated_at=datetime.datetime.now()
+                        )
+                        db.session.add(category)
+                        db.session.commit()
+                        print(f"Created category: {category_name}")
+                    categories[category_name] = category
+                
+                # Create default category if needed (for any products that don't fit the specific categories)
+                general_category = Category.query.filter_by(category_name="General").first()
+                if not general_category:
+                    general_category = Category(
                         category_name="General",
                         created_at=datetime.datetime.now(),
                         updated_at=datetime.datetime.now()
                     )
-                    db.session.add(category)
+                    db.session.add(general_category)
                     db.session.commit()
                     print("Created default 'General' category")
+                categories["General"] = general_category
                 
-                # Create a sample product
-                sample_product = Product(
-                    name="Sample Product",
-                    description="This is a sample product for demonstration",
-                    price=1000.00,
-                    hsn_code="8471",  # Sample HSN code for computer equipment
-                    gst_rate=18.0,    # 18% GST rate
-                    cgst_rate=9.0,    # 9% CGST rate
-                    sgst_rate=9.0,    # 9% SGST rate
-                    unit="Pcs",
-                    category_id=category.id,
-                    created_at=datetime.datetime.now(),
-                    updated_at=datetime.datetime.now()
-                )
-                db.session.add(sample_product)
-                db.session.commit()
-                print("Created sample product: Sample Product (₹1000, 18% GST)")
+                # Define clothing products with appropriate HSN codes and serial numbers
+                clothing_products = [
+                    # Men's Wear
+                    {"name": "Men's Cotton T-Shirt", "description": "Premium cotton round neck t-shirt", "price": 599.00, "hsn_code": "6109", "category": "Men's Wear", "serial_number": "MT1001"},
+                    {"name": "Men's Formal Shirt", "description": "Business formal shirt with collar", "price": 1299.00, "hsn_code": "6105", "category": "Men's Wear", "serial_number": "MF1002"},
+                    {"name": "Men's Denim Jeans", "description": "Slim fit denim jeans", "price": 1499.00, "hsn_code": "6203", "category": "Men's Wear", "serial_number": "MJ1003"},
+                    {"name": "Men's Casual Trousers", "description": "Comfortable casual cotton trousers", "price": 1199.00, "hsn_code": "6203", "category": "Men's Wear", "serial_number": "MT1004"},
+                    {"name": "Men's Blazer", "description": "Semi-formal single breasted blazer", "price": 3999.00, "hsn_code": "6203", "category": "Men's Wear", "serial_number": "MB1005"},
+                    
+                    # Women's Wear
+                    {"name": "Women's Top", "description": "Casual sleeveless top", "price": 699.00, "hsn_code": "6106", "category": "Women's Wear", "serial_number": "WT2001"},
+                    {"name": "Women's Kurti", "description": "Printed cotton kurti", "price": 899.00, "hsn_code": "6104", "category": "Women's Wear", "serial_number": "WK2002"},
+                    {"name": "Women's Jeans", "description": "High waist skinny fit jeans", "price": 1599.00, "hsn_code": "6204", "category": "Women's Wear", "serial_number": "WJ2003"},
+                    {"name": "Women's Dress", "description": "A-line knee length dress", "price": 1799.00, "hsn_code": "6104", "category": "Women's Wear", "serial_number": "WD2004"},
+                    {"name": "Women's Saree", "description": "Cotton saree with blouse piece", "price": 1999.00, "hsn_code": "6211", "category": "Women's Wear", "serial_number": "WS2005"},
+                    
+                    # Kids Wear
+                    {"name": "Kids T-Shirt", "description": "Printed cotton t-shirt for children", "price": 399.00, "hsn_code": "6109", "category": "Kids Wear", "serial_number": "KT3001"},
+                    {"name": "Kids Shorts", "description": "Elastic waist cotton shorts", "price": 349.00, "hsn_code": "6104", "category": "Kids Wear", "serial_number": "KS3002"},
+                    {"name": "Kids Frock", "description": "Party wear frock with bow detail", "price": 899.00, "hsn_code": "6209", "category": "Kids Wear", "serial_number": "KF3003"},
+                    {"name": "Kids School Uniform", "description": "School uniform set with shirt and pants", "price": 799.00, "hsn_code": "6209", "category": "Kids Wear", "serial_number": "KU3004"},
+                    {"name": "Kids Pajamas", "description": "Soft cotton nightwear", "price": 499.00, "hsn_code": "6208", "category": "Kids Wear", "serial_number": "KP3005"},
+                    
+                    # Accessories
+                    {"name": "Cotton Scarf", "description": "Lightweight cotton scarf", "price": 299.00, "hsn_code": "6214", "category": "Accessories", "serial_number": "AS4001"},
+                    {"name": "Leather Belt", "description": "Genuine leather formal belt", "price": 699.00, "hsn_code": "4203", "category": "Accessories", "serial_number": "AB4002"},
+                    {"name": "Knitted Cap", "description": "Winter knitted cap", "price": 349.00, "hsn_code": "6505", "category": "Accessories", "serial_number": "AC4003"},
+                    {"name": "Cotton Socks", "description": "Pack of 3 pairs cotton socks", "price": 249.00, "hsn_code": "6115", "category": "Accessories", "serial_number": "AS4004"},
+                    {"name": "Leather Wallet", "description": "Bifold leather wallet with card slots", "price": 899.00, "hsn_code": "4202", "category": "Accessories", "serial_number": "AW4005"},
+                    
+                    # Footwear
+                    {"name": "Men's Formal Shoes", "description": "Leather formal shoes for men", "price": 1999.00, "hsn_code": "6403", "category": "Footwear", "serial_number": "FM5001"},
+                    {"name": "Women's Heels", "description": "Medium heel pointed toe shoes", "price": 1499.00, "hsn_code": "6404", "category": "Footwear", "serial_number": "FW5002"},
+                    {"name": "Kids Sports Shoes", "description": "Lightweight sports shoes for kids", "price": 799.00, "hsn_code": "6404", "category": "Footwear", "serial_number": "FK5003"},
+                    {"name": "Canvas Sneakers", "description": "Unisex casual canvas sneakers", "price": 899.00, "hsn_code": "6404", "category": "Footwear", "serial_number": "FS5004"},
+                    {"name": "Flip Flops", "description": "Casual beach flip flops", "price": 299.00, "hsn_code": "6402", "category": "Footwear", "serial_number": "FF5005"},
+                ]
+                
+                # Create the products
+                from field_utils import get_entity_field_value, set_entity_field_value
+                
+                product_count = 0
+                for product_data in clothing_products:
+                    # Create product
+                    product = Product(
+                        name=product_data["name"],
+                        description=product_data["description"],
+                        price=product_data["price"],
+                        hsn_code=product_data["hsn_code"],
+                        gst_rate=5.0,     # 5% GST for clothing
+                        cgst_rate=2.5,    # 2.5% CGST
+                        sgst_rate=2.5,    # 2.5% SGST
+                        unit="Pcs",
+                        category_id=categories[product_data["category"]].id,
+                        created_at=datetime.datetime.now(),
+                        updated_at=datetime.datetime.now()
+                    )
+                    db.session.add(product)
+                    db.session.commit()
+                    
+                    # Add serial number to custom field
+                    set_entity_field_value('product', product.id, 'serial_number', product_data["serial_number"])
+                    
+                    product_count += 1
+                
+                print(f"Created {product_count} sample clothing products with serial numbers")
             else:
                 print("Products already exist, skipping sample product creation")
             

@@ -40,6 +40,7 @@ def initialize_default_fields():
                 "field_type": "text",
                 "field_order": 1,
                 "enabled": True,
+                "searchable": True,
                 "help_text": "Product serial number or SKU"
             },
             {
@@ -260,7 +261,7 @@ def get_all_entity_field_values(entity_type, entity_id):
         return {}
 
 def create_field_definition(entity_type, field_name, display_name, field_type, 
-                           required=False, enabled=True, field_order=0,
+                           required=False, enabled=True, searchable=False, field_order=0,
                            options=None, default_value=None, validation_regex=None,
                            help_text=None, user_id=None):
     """
@@ -305,6 +306,7 @@ def create_field_definition(entity_type, field_name, display_name, field_type,
             field_type=field_type,
             required=required,
             enabled=enabled,
+            searchable=searchable,
             field_order=field_order,
             options=options_json,
             default_value=default_value,
@@ -329,6 +331,7 @@ def create_field_definition(entity_type, field_name, display_name, field_type,
                     'field_type': field_type,
                     'required': required,
                     'enabled': enabled,
+                    'searchable': searchable,
                     'field_order': field_order,
                     'options': options,
                     'default_value': default_value,
@@ -351,7 +354,7 @@ def create_field_definition(entity_type, field_name, display_name, field_type,
         return None
 
 def update_field_definition(field_id, display_name=None, field_type=None, 
-                           required=None, enabled=None, field_order=None,
+                           required=None, enabled=None, searchable=None, field_order=None,
                            options=None, default_value=None, validation_regex=None,
                            help_text=None, user_id=None):
     """
@@ -402,6 +405,8 @@ def update_field_definition(field_id, display_name=None, field_type=None,
             field_def.required = required
         if enabled is not None:
             field_def.enabled = enabled
+        if searchable is not None:
+            field_def.searchable = searchable
         if field_order is not None:
             field_def.field_order = field_order
         if options is not None:
@@ -418,6 +423,7 @@ def update_field_definition(field_id, display_name=None, field_type=None,
             'display_name': field_def.display_name,
             'field_type': field_def.field_type,
             'required': field_def.required,
+            'searchable': field_def.searchable,
             'enabled': field_def.enabled,
             'field_order': field_def.field_order,
             'options': json.loads(field_def.options) if field_def.options else None,

@@ -19,6 +19,9 @@
 <form method="POST" id="billForm">
     {{ form.hidden_tag() }}
     
+    <!-- Hidden flag for edit mode detection in JavaScript -->
+    <input type="hidden" id="editModeFlag" value="{{ 'true' if edit_mode else 'false' }}" />
+    
     <div class="row">
         <!-- Customer Selection -->
         <div class="col-md-8">
@@ -239,7 +242,7 @@
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <div class="input-group">
-                            <input type="text" class="form-control" id="productSearch" placeholder="Search products..." autocomplete="off">
+                            <input type="text" class="form-control" id="productSearch" placeholder="Search name, description, HSN, or any searchable field..." autocomplete="off">
                             <button class="btn btn-outline-primary" type="button" id="searchProductBtn">
                                 <i class="fas fa-search"></i>
                             </button>
@@ -263,8 +266,8 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <button type="button" class="btn btn-success w-100" onclick="showQuickAddProduct()">
-                            <i class="fas fa-plus"></i> Quick Add
+                        <button type="button" class="btn btn-secondary w-100" onclick="resetProductSearch()">
+                            <i class="fas fa-redo"></i> Reset
                         </button>
                     </div>
                 </div>
@@ -486,48 +489,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initial product load when modal opens
     document.getElementById('productModal').addEventListener('shown.bs.modal', function() {
-        // Only load initial products if not already searching
-        const searchTerm = document.getElementById('productSearch').value.trim();
-        if (searchTerm.length < 2) {
-            // Show popular/recent products on modal open
-            fetch('/api/products/recent')
-                .then(response => response.json())
-                .then(data => {
-                    const tbody = document.getElementById('productTableBody');
-                    tbody.innerHTML = '';
-                    
-                    if (data.products && data.products.length > 0) {
-                        data.products.forEach(product => {
-                            const row = document.createElement('tr');
-                            row.dataset.category = product.category || 'General';
-                            
-                            row.innerHTML = `
-                                <td>
-                                    <strong>${escapeHtml(product.name)}</strong>
-                                    ${product.description ? `<br><small class="text-muted">${escapeHtml(product.description)}</small>` : ''}
-                                </td>
-                                <td><span class="badge bg-secondary">${escapeHtml(product.category || 'General')}</span></td>
-                                <td>${escapeHtml(product.hsn_code)}</td>
-                                <td>₹${parseFloat(product.price).toFixed(2)}</td>
-                                <td>${parseFloat(product.gst_rate).toFixed(1)}%</td>
-                                <td>${escapeHtml(product.unit)}</td>
-                                <td>
-                                    <button type="button" class="btn btn-sm btn-primary" onclick="selectProduct(${product.id})">
-                                        Select
-                                    </button>
-                                </td>
-                            `;
-                            
-                            tbody.appendChild(row);
-                        });
-                    } else {
-                        document.getElementById('noProductsMessage').style.display = 'block';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching recent products:', error);
-                });
-        }
+        // Clear any previous search and load recent products
+        resetProductSearch();
     });
 });
 
@@ -543,15 +506,16 @@ function addNewItem() {
     // Add any cached products if available (loaded via AJAX previously)
     if (window.cachedProducts && window.cachedProducts.length > 0) {
         window.cachedProducts.forEach(product => {
+            const price = parseFloat(product.price || 0);
             productOptions += `<option value="${product.id}" 
-                data-name="${product.name}" 
-                data-hsn="${product.hsn_code}" 
-                data-unit="${product.unit}" 
-                data-rate="${product.price}" 
-                data-gst="${product.gst_rate}" 
-                data-cgst="${product.cgst_rate || product.gst_rate/2}" 
-                data-sgst="${product.sgst_rate || product.gst_rate/2}" 
-                data-description="${product.description || ''}">${product.name} - ₹${product.price}</option>`;
+                data-name="${product.name || ''}" 
+                data-hsn="${product.hsn_code || ''}" 
+                data-unit="${product.unit || 'Nos'}" 
+                data-rate="${price}" 
+                data-gst="${product.gst_rate || 0}" 
+                data-cgst="${product.cgst_rate || (product.gst_rate ? product.gst_rate/2 : 0)}" 
+                data-sgst="${product.sgst_rate || (product.gst_rate ? product.gst_rate/2 : 0)}" 
+                data-description="${product.description || ''}">${product.name || ''} - ₹${price.toFixed(2)}</option>`;
         });
     }
     
@@ -687,22 +651,38 @@ function loadExistingItem(productId, quantity, productName, hsnCode, unit, rate,
     // If we have a product ID, fetch the details and add to cached products
     if (productId > 0) {
         // Check if we already have this product in cache
-        const cachedProduct = window.cachedProducts.find(p => p.id === productId);
+        const cachedProduct = window.cachedProducts.find(p => p.id === parseInt(productId));
         
         if (!cachedProduct) {
             // Add a temporary option while we load the product
             productOptions += `<option value="${productId}" selected>${productName}</option>`;
+            
+            // Store the current row ID to ensure updates go to the correct row
+            const currentRowId = itemCounter;
             
             // Fetch the product details asynchronously
             fetch(`/api/products/${productId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.product) {
-                        // Add to cache for future use
-                        window.cachedProducts.push(data.product);
+                        // Make sure we don't add duplicates
+                        const existingIndex = window.cachedProducts.findIndex(p => p.id === data.product.id);
+                        if (existingIndex >= 0) {
+                            window.cachedProducts[existingIndex] = data.product;
+                        } else {
+                            // Add to cache for future use
+                            window.cachedProducts.push(data.product);
+                        }
+                        
+                        // Get the specific row we need to update using the stored ID
+                        const specificRow = document.getElementById(`item-row-${currentRowId}`);
+                        if (!specificRow) {
+                            console.error(`Row ${currentRowId} not found when updating product`);
+                            return;
+                        }
                         
                         // Update the option with complete data
-                        const selectElement = row.querySelector(`select[name*="product_id"]`);
+                        const selectElement = specificRow.querySelector(`select[name*="product_id"]`);
                         if (selectElement) {
                             const option = selectElement.querySelector(`option[value="${productId}"]`);
                             if (option) {
@@ -722,35 +702,47 @@ function loadExistingItem(productId, quantity, productName, hsnCode, unit, rate,
                 .catch(error => console.error('Error fetching product:', error));
         } else {
             // We have the product in cache, add it as selected
+            // Use the cached product data, but preserve the original values passed to this function
+            // for rate, gst_rate, etc., as they might have been customized
+            const price = parseFloat(rate || cachedProduct.price || 0);
             productOptions += `<option value="${cachedProduct.id}" selected 
-                data-name="${cachedProduct.name}" 
-                data-hsn="${cachedProduct.hsn_code}" 
-                data-unit="${cachedProduct.unit}" 
-                data-rate="${cachedProduct.price}" 
-                data-gst="${cachedProduct.gst_rate}" 
-                data-cgst="${cachedProduct.cgst_rate || cachedProduct.gst_rate/2}" 
-                data-sgst="${cachedProduct.sgst_rate || cachedProduct.gst_rate/2}" 
-                data-description="${cachedProduct.description || ''}">${cachedProduct.name} - ₹${cachedProduct.price.toFixed(2)}</option>`;
+                data-name="${cachedProduct.name || productName || ''}" 
+                data-hsn="${hsnCode || cachedProduct.hsn_code || ''}" 
+                data-unit="${unit || cachedProduct.unit || 'Nos'}" 
+                data-rate="${price}" 
+                data-gst="${gstRate || cachedProduct.gst_rate || 0}" 
+                data-cgst="${cgstRate || cachedProduct.cgst_rate || (cachedProduct.gst_rate ? cachedProduct.gst_rate/2 : 0)}" 
+                data-sgst="${sgstRate || cachedProduct.sgst_rate || (cachedProduct.gst_rate ? cachedProduct.gst_rate/2 : 0)}" 
+                data-description="${description || cachedProduct.description || ''}">${cachedProduct.name || productName || ''} - ₹${price.toFixed(2)}</option>`;
         }
     } else if (productName) {
         // Custom product (no ID)
         productOptions += `<option value="0" selected>${productName}</option>`;
     }
     
-    // Add any other cached products we might have
-    window.cachedProducts.forEach(product => {
-        if (product.id !== productId) {
-            productOptions += `<option value="${product.id}" 
-                data-name="${product.name}" 
-                data-hsn="${product.hsn_code}" 
-                data-unit="${product.unit}" 
-                data-rate="${product.price}" 
-                data-gst="${product.gst_rate}" 
-                data-cgst="${product.cgst_rate || product.gst_rate/2}" 
-                data-sgst="${product.sgst_rate || product.gst_rate/2}" 
-                data-description="${product.description || ''}">${product.name} - ₹${product.price.toFixed(2)}</option>`;
-        }
-    });
+    // Add any other cached products we might have - but don't add too many to avoid making the dropdown too big
+    // We'll use the browse products feature for a more complete list
+    let cachedProductsAdded = 0;
+    const maxCachedProductsToShow = 30; // Limit to avoid very large dropdowns
+    
+    if (window.cachedProducts && window.cachedProducts.length > 0) {
+        window.cachedProducts.forEach(product => {
+            // Only add a limited number of cached products, and skip the current one
+            if (cachedProductsAdded < maxCachedProductsToShow && product.id !== parseInt(productId)) {
+                const price = parseFloat(product.price || 0);
+                productOptions += `<option value="${product.id}" 
+                    data-name="${product.name || ''}" 
+                    data-hsn="${product.hsn_code || ''}" 
+                    data-unit="${product.unit || 'Nos'}" 
+                    data-rate="${price}" 
+                    data-gst="${product.gst_rate || 0}" 
+                    data-cgst="${product.cgst_rate || (product.gst_rate ? product.gst_rate/2 : 0)}" 
+                    data-sgst="${product.sgst_rate || (product.gst_rate ? product.gst_rate/2 : 0)}" 
+                    data-description="${product.description || ''}">${product.name || ''} - ₹${price.toFixed(2)}</option>`;
+                cachedProductsAdded++;
+            }
+        });
+    }
     
     row.innerHTML = `
         <td>
@@ -829,84 +821,209 @@ function removeItem(itemId) {
 function openProductModal(itemId) {
     currentItemRow = itemId;
     const modal = new bootstrap.Modal(document.getElementById('productModal'));
+    
+    // Get the current product name if any
+    const row = document.getElementById(`item-row-${itemId}`);
+    if (row) {
+        const currentProductName = row.querySelector('.product-name-field').value;
+        const searchInput = document.getElementById('productSearch');
+        
+        // Pre-fill search box with current product name for easier searching
+        if (currentProductName && currentProductName.trim() !== '') {
+            searchInput.value = currentProductName;
+            // Trigger a search with the current product name
+            filterProducts();
+        } else {
+            // Clear previous search
+            searchInput.value = '';
+            document.getElementById('productTableBody').innerHTML = '';
+            
+            // Show recently used products if we have them cached
+            if (window.cachedProducts && window.cachedProducts.length > 0) {
+                // Display a message about recent products
+                document.getElementById('noProductsMessage').style.display = 'none';
+                document.getElementById('productLoadingIndicator').style.display = 'none';
+                
+                const tbody = document.getElementById('productTableBody');
+                const recentHeading = document.createElement('tr');
+                recentHeading.innerHTML = '<td colspan="7" class="bg-light text-center fw-bold">Recently Used Products</td>';
+                tbody.appendChild(recentHeading);
+                
+                // Show up to 5 most recent products
+                const recentProducts = window.cachedProducts.slice(0, 5);
+                recentProducts.forEach(product => {
+                    const row = document.createElement('tr');
+                    
+                    // Build name cell content
+                    let nameContent = `<strong>${escapeHtml(product.name)}</strong>`;
+                    if (product.description) {
+                        nameContent += `<br><small class="text-muted">${escapeHtml(product.description)}</small>`;
+                    }
+                    
+                    row.innerHTML = `
+                        <td>${nameContent}</td>
+                        <td><span class="badge bg-secondary">${escapeHtml(product.category || 'General')}</span></td>
+                        <td>${escapeHtml(product.hsn_code || '')}</td>
+                        <td>₹${parseFloat(product.price || 0).toFixed(2)}</td>
+                        <td>${parseFloat(product.gst_rate || 0).toFixed(1)}%</td>
+                        <td>${escapeHtml(product.unit || 'Nos')}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="selectProduct(${product.id})">
+                                Select
+                            </button>
+                        </td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+            }
+        }
+    }
+    
     modal.show();
+    
+    // Focus on search input
+    setTimeout(() => {
+        document.getElementById('productSearch').focus();
+    }, 300);
 }
 
 function selectProduct(productId) {
-    if (currentItemRow) {
-        const row = document.getElementById(`item-row-${currentItemRow}`);
-        if (!row) return;
-        
-        // Get product details via AJAX
-        fetch(`/api/products/${productId}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (!data.product) {
-                    throw new Error('Product not found');
-                }
-                
-                const product = data.product;
-                const selectElement = row.querySelector('select[name*="product_id"]');
-                
-                // First, create a new option for this product if it doesn't exist
-                let option = selectElement.querySelector(`option[value="${product.id}"]`);
-                if (!option) {
-                    option = document.createElement('option');
-                    option.value = product.id;
-                    option.textContent = `${product.name} - ₹${product.price.toFixed(2)}`;
-                    option.dataset.name = product.name;
-                    option.dataset.hsn = product.hsn_code;
-                    option.dataset.unit = product.unit;
-                    option.dataset.rate = product.price;
-                    option.dataset.gst = product.gst_rate;
-                    option.dataset.cgst = product.cgst_rate || (product.gst_rate / 2);
-                    option.dataset.sgst = product.sgst_rate || (product.gst_rate / 2);
-                    option.dataset.description = product.description || '';
-                    selectElement.appendChild(option);
-                }
-                
-                // Set the select value
-                selectElement.value = product.id;
-                
-                // Update all fields directly
-                row.querySelector('.hsn-display').textContent = product.hsn_code;
-                row.querySelector('.unit-display').textContent = product.unit;
-                row.querySelector('.rate-display').textContent = `₹${parseFloat(product.price).toFixed(2)}`;
-                
-                const cgstRate = product.cgst_rate || (product.gst_rate / 2);
-                const sgstRate = product.sgst_rate || (product.gst_rate / 2);
-                
-                row.querySelector('.cgst-display').textContent = `${cgstRate}%`;
-                row.querySelector('.sgst-display').textContent = `${sgstRate}%`;
-                row.querySelector('.product-details').textContent = product.description || '';
-                
-                // Update hidden fields
-                row.querySelector('.hsn-field').value = product.hsn_code;
-                row.querySelector('.unit-field').value = product.unit;
-                row.querySelector('.rate-field').value = product.price;
-                row.querySelector('.cgst-field').value = cgstRate;
-                row.querySelector('.sgst-field').value = sgstRate;
-                row.querySelector('.gst-field').value = product.gst_rate;
-                row.querySelector('.product-name-field').value = product.name;
-                row.querySelector('.description-field').value = product.description || '';
-                
-                // Recalculate amount
-                calculateItemAmount(currentItemRow);
-                
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
-                modal.hide();
-            })
-            .catch(error => {
-                console.error('Error fetching product:', error);
-                alert('Error loading product details. Please try again.');
-            });
+    // Get the current row we're working with
+    if (!currentItemRow) {
+        console.error('No item row selected');
+        return;
     }
+    
+    const row = document.getElementById(`item-row-${currentItemRow}`);
+    if (!row) {
+        console.error(`Item row ${currentItemRow} not found`);
+        return;
+    }
+    
+    // Store the specific row ID to make sure we're updating the correct row
+    const rowToUpdate = currentItemRow;
+    console.log(`Selecting product ${productId} for row ${rowToUpdate}`);
+    
+    // Get product details via AJAX
+    fetch(`/api/products/${productId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Network response was not ok: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data.product) {
+                throw new Error('Product data is missing');
+            }
+            
+            const product = data.product;
+            console.log('Product data received:', product);
+            
+            // Add to global cache for later use in other rows
+            if (!window.cachedProducts) {
+                window.cachedProducts = [];
+            }
+            
+            // Update or add to cache - move to the front to maintain most recently used order
+            const existingIndex = window.cachedProducts.findIndex(p => p.id === product.id);
+            if (existingIndex >= 0) {
+                // Remove from current position
+                const existingProduct = window.cachedProducts.splice(existingIndex, 1)[0];
+                
+                // Merge any updated properties
+                Object.assign(existingProduct, product);
+                
+                // Add to the beginning of the array (most recently used first)
+                window.cachedProducts.unshift(existingProduct);
+            } else {
+                // Add new product to the beginning of the array
+                window.cachedProducts.unshift(product);
+                
+                // Limit cache size to avoid excessive memory usage
+                if (window.cachedProducts.length > 100) {
+                    window.cachedProducts = window.cachedProducts.slice(0, 100);
+                }
+            }
+            
+            // Now update the dropdown in this specific row - using the stored rowToUpdate value
+            // to ensure we're working with the correct row that initiated the selection
+            const specificRow = document.getElementById(`item-row-${rowToUpdate}`);
+            if (!specificRow) {
+                throw new Error(`Item row ${rowToUpdate} not found`);
+            }
+            
+            const selectElement = specificRow.querySelector('select[name*="product_id"]');
+            if (!selectElement) {
+                throw new Error('Product select element not found');
+            }
+            
+            // First clear all other options except the empty default one
+            while (selectElement.options.length > 1) {
+                selectElement.remove(1);
+            }
+            
+            // Create a new option for this product
+            const option = document.createElement('option');
+            option.value = product.id;
+            selectElement.appendChild(option);
+            
+            // Update the option data
+            const price = parseFloat(product.price || 0);
+            option.textContent = `${product.name} - ₹${price.toFixed(2)}`;
+            option.dataset.name = product.name || '';
+            option.dataset.hsn = product.hsn_code || '';
+            option.dataset.unit = product.unit || 'Nos';
+            option.dataset.rate = price;
+            option.dataset.gst = product.gst_rate || 0;
+            option.dataset.cgst = product.cgst_rate || (product.gst_rate / 2) || 0;
+            option.dataset.sgst = product.sgst_rate || (product.gst_rate / 2) || 0;
+            option.dataset.description = product.description || '';
+            
+            // Select this option
+            selectElement.value = product.id;
+            
+            // Update the row fields with product data
+            const cgstRate = product.cgst_rate || (product.gst_rate / 2) || 0;
+            const sgstRate = product.sgst_rate || (product.gst_rate / 2) || 0;
+            
+            // Update display fields - make sure we're using specificRow (not row)
+            // to prevent any race conditions with multiple async product lookups
+            specificRow.querySelector('.hsn-display').textContent = product.hsn_code || '';
+            specificRow.querySelector('.unit-display').textContent = product.unit || 'Nos';
+            specificRow.querySelector('.rate-display').textContent = `₹${price.toFixed(2)}`;
+            specificRow.querySelector('.cgst-display').textContent = `${cgstRate}%`;
+            specificRow.querySelector('.sgst-display').textContent = `${sgstRate}%`;
+            specificRow.querySelector('.product-details').textContent = product.description || '';
+            
+            // Update hidden form fields
+            specificRow.querySelector('.hsn-field').value = product.hsn_code || '';
+            specificRow.querySelector('.unit-field').value = product.unit || 'Nos';
+            specificRow.querySelector('.rate-field').value = price;
+            specificRow.querySelector('.cgst-field').value = cgstRate;
+            specificRow.querySelector('.sgst-field').value = sgstRate;
+            specificRow.querySelector('.gst-field').value = product.gst_rate || 0;
+            specificRow.querySelector('.product-name-field').value = product.name || '';
+            specificRow.querySelector('.description-field').value = product.description || '';
+            
+            // Recalculate amount for this row
+            calculateItemAmount(rowToUpdate);
+            
+            // Close the product selection modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+            if (modal) {
+                modal.hide();
+            } else {
+                console.error('Modal instance not found');
+            }
+            
+            console.log(`Successfully updated row ${currentItemRow} with product ${product.id}`);
+        })
+        .catch(error => {
+            console.error('Error selecting product:', error);
+            alert('Error loading product details. Please try again.');
+        });
 }
 
 function calculateItemAmount(itemId) {
@@ -917,7 +1034,9 @@ function calculateItemAmount(itemId) {
     const amount = quantity * rate;
     row.querySelector('.item-amount').textContent = `₹${amount.toFixed(2)}`;
     
+    // Update total summary after calculating this item
     updateSummary();
+    updateFormButtons();
 }
 
 // Update discount field visibility and label
@@ -1035,12 +1154,17 @@ function updateFormButtons() {
     const saveBillBtn = document.getElementById('saveBillBtn');
     
     if (saveBillBtn) {
+        // Check if we're in edit mode (set from server-side)
+        const editMode = document.getElementById('editModeFlag') ? 
+                         document.getElementById('editModeFlag').value === 'true' : false;
+        
         // In edit mode, we already have a bill, so enable the button if a customer is selected
-        {% if edit_mode %}
-        saveBillBtn.disabled = !customerSelected;
-        {% else %}
-        saveBillBtn.disabled = !(hasItems && customerSelected);
-        {% endif %}
+        // In create mode, we need both items and customer
+        if (editMode) {
+            saveBillBtn.disabled = !customerSelected;
+        } else {
+            saveBillBtn.disabled = !(hasItems && customerSelected);
+        }
     }
 }
 
@@ -1081,11 +1205,33 @@ function filterProducts() {
                     const row = document.createElement('tr');
                     row.dataset.category = product.category || 'General';
                     
+                    // Build name cell content with custom fields if available
+                    let nameContent = `<strong>${escapeHtml(product.name)}</strong>`;
+                    if (product.description) {
+                        nameContent += `<br><small class="text-muted">${escapeHtml(product.description)}</small>`;
+                    }
+                    
+                    // Add any searchable custom field values as badges below the description
+                    if (product.custom_fields && Object.keys(product.custom_fields).length > 0) {
+                        nameContent += '<div class="mt-1">';
+                        for (const [fieldName, fieldData] of Object.entries(product.custom_fields)) {
+                            // Highlight the field if it contains the search term
+                            const searchTerm = document.getElementById('productSearch').value.trim();
+                            const fieldValue = fieldData.value;
+                            let bgClass = 'bg-info';
+                            
+                            // Check if this field value contains the search term
+                            if (searchTerm && fieldValue.toLowerCase().includes(searchTerm.toLowerCase())) {
+                                bgClass = 'bg-success'; // Use a different color to highlight matching fields
+                            }
+                            
+                            nameContent += `<span class="badge ${bgClass} me-1" title="${escapeHtml(fieldData.display_name)}">${escapeHtml(fieldData.display_name)}: ${escapeHtml(fieldData.value)}</span>`;
+                        }
+                        nameContent += '</div>';
+                    }
+                    
                     row.innerHTML = `
-                        <td>
-                            <strong>${escapeHtml(product.name)}</strong>
-                            ${product.description ? `<br><small class="text-muted">${escapeHtml(product.description)}</small>` : ''}
-                        </td>
+                        <td>${nameContent}</td>
                         <td><span class="badge bg-secondary">${escapeHtml(product.category || 'General')}</span></td>
                         <td>${escapeHtml(product.hsn_code)}</td>
                         <td>₹${parseFloat(product.price).toFixed(2)}</td>
@@ -1123,11 +1269,6 @@ function escapeHtml(unsafe) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
-}
-
-function showQuickAddProduct() {
-    const modal = new bootstrap.Modal(document.getElementById('quickAddProductModal'));
-    modal.show();
 }
 
 function saveQuickProduct() {
@@ -1267,6 +1408,84 @@ function saveQuickCustomer() {
         console.error('Error:', error);
         alert('Error adding customer');
     });
+}
+
+// Reset product search and show recent products
+function resetProductSearch() {
+    // Clear search field and category filter
+    document.getElementById('productSearch').value = '';
+    document.getElementById('categoryFilter').value = '';
+    
+    // Show loading indicator and hide messages
+    document.getElementById('productLoadingIndicator').style.display = 'block';
+    document.getElementById('noProductsMessage').style.display = 'none';
+    
+    // Clear current table content
+    document.getElementById('productTableBody').innerHTML = '';
+    
+    // Fetch recent products
+    fetch('/api/products/recent')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const tbody = document.getElementById('productTableBody');
+            
+            // Hide loading indicator
+            document.getElementById('productLoadingIndicator').style.display = 'none';
+            
+            // Check if we got any products
+            if (data.products && data.products.length > 0) {
+                // Populate the table with products
+                data.products.forEach(product => {
+                    const row = document.createElement('tr');
+                    row.dataset.category = product.category || 'General';
+                    
+                    // Build name cell content with custom fields if available
+                    let nameContent = `<strong>${escapeHtml(product.name)}</strong>`;
+                    if (product.description) {
+                        nameContent += `<br><small class="text-muted">${escapeHtml(product.description)}</small>`;
+                    }
+                    
+                    // Add any searchable custom fields as badges below the description
+                    if (product.custom_fields && Object.keys(product.custom_fields).length > 0) {
+                        nameContent += '<div class="mt-1">';
+                        for (const [fieldName, fieldData] of Object.entries(product.custom_fields)) {
+                            nameContent += `<span class="badge bg-info me-1" title="${escapeHtml(fieldData.display_name)}">${escapeHtml(fieldData.display_name)}: ${escapeHtml(fieldData.value)}</span>`;
+                        }
+                        nameContent += '</div>';
+                    }
+                    
+                    row.innerHTML = `
+                        <td>${nameContent}</td>
+                        <td><span class="badge bg-secondary">${escapeHtml(product.category || 'General')}</span></td>
+                        <td>${escapeHtml(product.hsn_code)}</td>
+                        <td>₹${parseFloat(product.price).toFixed(2)}</td>
+                        <td>${parseFloat(product.gst_rate).toFixed(1)}%</td>
+                        <td>${escapeHtml(product.unit)}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="selectProduct(${product.id})">
+                                Select
+                            </button>
+                        </td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+            } else {
+                // Show no products message
+                document.getElementById('noProductsMessage').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching recent products:', error);
+            document.getElementById('productLoadingIndicator').style.display = 'none';
+            document.getElementById('noProductsMessage').style.display = 'block';
+            document.getElementById('noProductsMessage').querySelector('p').textContent = 'Error loading recent products. Please try again.';
+        });
 }
 
 // Event listeners

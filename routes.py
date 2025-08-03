@@ -8,6 +8,8 @@ from models import Company, Customer, Product, Bill, BillItem, BillSequence, Use
 from forms import CompanyConfigForm, CustomerForm, ProductForm, BillForm, BillItemForm, LoginForm, UserForm, ChangePasswordForm, CreateUserForm, QuickAddProductForm
 from utils import allowed_file, get_state_name
 from gst_calculator import calculate_gst
+from sqlalchemy import or_, and_, not_, cast, text, func
+from sqlalchemy.types import String
 from pdf_generator import generate_invoice_pdf
 from datetime import datetime, date
 import uuid
@@ -1184,33 +1186,120 @@ def get_product_api(id):
 @login_required
 def search_products_api():
     """API endpoint to search for products"""
-    term = request.args.get('term', '').strip()
-    category = request.args.get('category', '')
-    
-    # Base query
-    query = Product.query
-    
-    # Apply search term filter
-    if term:
-        query = query.filter(
-            db.or_(
-                Product.name.ilike(f"%{term}%"),
-                Product.description.ilike(f"%{term}%"),
-                Product.hsn_code.ilike(f"%{term}%")
+    try:
+        term = request.args.get('term', '').strip()
+        category = request.args.get('category', '')
+        
+        # Base query for products matching standard fields
+        standard_query = Product.query
+        
+        # Apply search term filter to standard fields
+        if term:
+            standard_query = standard_query.filter(
+                or_(
+                    Product.name.ilike(f"%{term}%"),
+                    Product.description.ilike(f"%{term}%"),
+                    Product.hsn_code.ilike(f"%{term}%")
+                )
             )
-        )
+        
+        # Apply category filter
+        if category:
+            standard_query = standard_query.join(Category).filter(Category.category_name == category)
+        
+        # Get results from standard fields (limit to 100 for performance)
+        standard_products = standard_query.order_by(Product.name).limit(100).all()
+        
+        # If term is provided, also search by all searchable custom fields
+        if term:
+            from models import FieldDefinition, FieldData
+            
+            # Get IDs of products that were found through standard search
+            found_product_ids = {p.id for p in standard_products}
+            
+            # Find all searchable fields for products
+            searchable_fields = FieldDefinition.query.filter_by(
+                entity_type='product',
+                enabled=True,
+                searchable=True
+            ).all()
+            
+            # Create a mapping of field_ids to field objects for later use
+            field_id_to_field = {field.id: field for field in searchable_fields}
+            
+            # If there are searchable fields, search for matching values
+            additional_products = []
+            if searchable_fields:
+                field_ids = [field.id for field in searchable_fields]
+                
+                # Search in FieldData for matching values
+                try:
+                    # First try to search with value_text which is the most common type
+                    matching_field_data = FieldData.query.filter(
+                        FieldData.field_definition_id.in_(field_ids),
+                        FieldData.value_text.ilike(f"%{term}%")
+                    ).all()
+                    
+                    # Get unique product IDs from matching field data that aren't already found
+                    additional_product_ids = {fd.entity_id for fd in matching_field_data} - found_product_ids
+                    
+                    # Get additional products
+                    if additional_product_ids:
+                        add_products = Product.query.filter(
+                            Product.id.in_(additional_product_ids)
+                        ).all()
+                        
+                        additional_products.extend(add_products)
+                        # Update found_product_ids to prevent duplicates
+                        found_product_ids.update({p.id for p in add_products})
+                except Exception as e:
+                    app.logger.error(f"Error searching text field data: {str(e)}")
+                
+                # Now try with the custom_fields JSON column (newer approach)
+                try:
+                    for field in searchable_fields:
+                        # Skip fields we've already found products for
+                        if field.field_name in ['serial_number', 'color', 'material']:  # Common searchable fields
+                                            # This approach may vary depending on the database engine
+                            # We'll use string comparison since we don't know if the database supports JSON_EXTRACT
+                            # Filter products where the custom_fields column contains the search term
+                            try:
+                                # Try a simpler approach that should work with SQLite
+                                json_products = Product.query.filter(
+                                    cast(Product.custom_fields, String).ilike(f"%{term}%"),
+                                    ~Product.id.in_(found_product_ids)  # Exclude already found products
+                                ).all()
+                            except Exception as json_err:
+                                app.logger.error(f"JSON search error: {str(json_err)}")
+                                json_products = []
+                            
+                            if json_products:
+                                additional_products.extend(json_products)
+                                # Update found_product_ids
+                                found_product_ids.update({p.id for p in json_products})
+                except Exception as e:
+                    app.logger.error(f"Error searching JSON custom fields: {str(e)}")
+                
+                # Combine results
+                if additional_products:
+                    products = standard_products + additional_products
+                else:
+                    products = standard_products
+            else:
+                products = standard_products
+        else:
+            products = standard_products
     
-    # Apply category filter
-    if category:
-        query = query.join(Category).filter(Category.name == category)
-    
-    # Get results (limit to 100 for performance)
-    products = query.order_by(Product.name).limit(100).all()
-    
-    # Format results
-    result = {
-        'products': [
-            {
+        # Format results with custom field values
+        from field_utils import get_entity_field_value
+        
+        result = {
+            'products': []
+        }
+        
+        for p in products:
+            # Create base product data
+            product_data = {
                 'id': p.id,
                 'name': p.name,
                 'description': p.description,
@@ -1218,12 +1307,33 @@ def search_products_api():
                 'hsn_code': p.hsn_code,
                 'gst_rate': float(p.gst_rate),
                 'unit': p.unit,
-                'category': p.category.category_name if p.category else 'General'
-            } for p in products
-        ]
-    }
-    
-    return jsonify(result)
+                'category': p.category.category_name if p.category else 'General',
+                'custom_fields': {}  # Add custom fields here
+            }
+            
+            # Add all searchable custom fields to the result
+            if 'searchable_fields' in locals() and searchable_fields:
+                for field in searchable_fields:
+                    try:
+                        field_value = get_entity_field_value('product', p.id, field.field_name)
+                        if field_value:
+                            product_data['custom_fields'][field.field_name] = {
+                                'value': field_value,
+                                'display_name': field.display_name
+                            }
+                    except Exception as e:
+                        app.logger.error(f"Error getting field value for {field.field_name}: {str(e)}")
+            
+            result['products'].append(product_data)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        app.logger.error(f"Error in search_products_api: {str(e)}")
+        return jsonify({
+            'error': 'An error occurred while searching products',
+            'details': str(e) if app.debug else 'Enable debug mode for more details'
+        }), 500
 
 @app.route('/api/products/recent')
 @login_required
@@ -1232,21 +1342,48 @@ def recent_products_api():
     # Get recently created products
     recent_products = Product.query.order_by(Product.created_at.desc()).limit(20).all()
     
-    # Format results
+    # Get all searchable fields for products
+    from models import FieldDefinition
+    searchable_fields = FieldDefinition.query.filter_by(
+        entity_type='product',
+        enabled=True,
+        searchable=True
+    ).all()
+    
+    # Format results with custom field values
+    from field_utils import get_entity_field_value
+    
     result = {
-        'products': [
-            {
-                'id': p.id,
-                'name': p.name,
-                'description': p.description,
-                'price': float(p.price),
-                'hsn_code': p.hsn_code,
-                'gst_rate': float(p.gst_rate),
-                'unit': p.unit,
-                'category': p.category.category_name if p.category else 'General'
-            } for p in recent_products
-        ]
+        'products': []
     }
+    
+    for p in recent_products:
+        # Create base product data
+        product_data = {
+            'id': p.id,
+            'name': p.name,
+            'description': p.description,
+            'price': float(p.price),
+            'hsn_code': p.hsn_code,
+            'gst_rate': float(p.gst_rate),
+            'unit': p.unit,
+            'category': p.category.category_name if p.category else 'General',
+            'custom_fields': {}  # Add custom fields here
+        }
+        
+        # Add all searchable custom fields to the result
+        if searchable_fields:
+            for field in searchable_fields:
+                field_value = get_entity_field_value('product', p.id, field.field_name)
+                if field_value:
+                    product_data['custom_fields'][field.field_name] = {
+                        'value': field_value,
+                        'display_name': field.display_name
+                    }
+        
+        result['products'].append(product_data)
+    
+    return jsonify(result)
     
     return jsonify(result)
 
