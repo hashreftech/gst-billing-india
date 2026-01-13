@@ -1,5 +1,11 @@
-from dotenv import load_dotenv
-load_dotenv()
+# Load environment from .env if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # If running without python-dotenv (e.g., system gunicorn), proceed assuming
+    # environment variables are provided by the hosting environment.
+    pass
 import os
 import logging
 from flask import Flask

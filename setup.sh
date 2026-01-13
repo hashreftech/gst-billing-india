@@ -20,20 +20,86 @@ else
     exit 1
 fi
 
-# Check if PostgreSQL is installed
-echo -e "\n${YELLOW}Checking PostgreSQL installation...${NC}"
-if command -v psql &>/dev/null; then
-    PSQL_VERSION=$(psql --version)
-    echo -e "${GREEN}✓ PostgreSQL is installed: $PSQL_VERSION${NC}"
+# Check for .env file first (needed for database connection)
+echo -e "\n${YELLOW}Checking for .env file...${NC}"
+if [ -f ".env" ]; then
+    echo -e "${GREEN}✓ .env file exists${NC}"
+    
+    # Load DATABASE_URL from .env
+    export $(grep -v '^#' .env | grep DATABASE_URL | xargs)
+    
+    # Test PostgreSQL connection
+    echo -e "\n${YELLOW}Testing PostgreSQL connection...${NC}"
+    if [ -z "$DATABASE_URL" ]; then
+        echo -e "${RED}✗ DATABASE_URL not found in .env file${NC}"
+        exit 1
+    fi
+    
+    # Extract connection details using Python (more reliable than sed for URL parsing)
+    DB_DETAILS=$(python3 -c "
+from urllib.parse import urlparse
+import sys
+try:
+    result = urlparse('$DATABASE_URL')
+    print(f'{result.hostname}|{result.port}|{result.username}|{result.password}|{result.path[1:]}')
+except Exception as e:
+    print('ERROR', file=sys.stderr)
+    sys.exit(1)
+")
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}✗ Failed to parse DATABASE_URL${NC}"
+        exit 1
+    fi
+    
+    IFS='|' read -r DB_HOST DB_PORT DB_USER DB_PASS DB_NAME <<< "$DB_DETAILS"
+    
+    echo -e "${YELLOW}Connecting to PostgreSQL at $DB_HOST:$DB_PORT...${NC}"
+    
+    # Test connection using psql (if available) or python
+    if command -v psql &>/dev/null; then
+        if PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1;" &>/dev/null 2>&1; then
+            echo -e "${GREEN}✓ PostgreSQL connection successful${NC}"
+        else
+            echo -e "${RED}✗ Failed to connect to PostgreSQL${NC}"
+            echo -e "${YELLOW}! Please verify your DATABASE_URL in .env file${NC}"
+            echo -e "${YELLOW}! Database: $DB_NAME, User: $DB_USER, Host: $DB_HOST:$DB_PORT${NC}"
+            echo -e "${YELLOW}! Ensure the remote PostgreSQL server is accessible${NC}"
+            exit 1
+        fi
+    else
+        # Fallback: test connection using Python
+        echo -e "${YELLOW}Testing connection using Python...${NC}"
+        python3 -c "
+import sys
+try:
+    import psycopg2
+    conn = psycopg2.connect('$DATABASE_URL')
+    conn.close()
+    print('✓ PostgreSQL connection successful')
+    sys.exit(0)
+except ImportError:
+    print('! psycopg2 not installed yet, will verify after installing dependencies')
+    sys.exit(0)
+except Exception as e:
+    print(f'✗ Failed to connect to PostgreSQL: {e}')
+    sys.exit(1)
+" || exit 1
+    fi
 else
-    echo -e "${RED}✗ PostgreSQL is not installed. Please install PostgreSQL.${NC}"
-    exit 1
+    echo -e "${YELLOW}! .env file not found. It will be created with sample configuration.${NC}"
+    echo -e "${YELLOW}! You must update it with your remote PostgreSQL credentials before running the application.${NC}"
 fi
 
 # Set up virtual environment
 echo -e "\n${YELLOW}Setting up virtual environment...${NC}"
-if [ -d "venv" ]; then
-    echo -e "${YELLOW}Virtual environment already exists. Skipping creation.${NC}"
+if [ -f "venv/bin/activate" ]; then
+    echo -e "${YELLOW}Virtual environment already exists.${NC}"
+elif [ -d "venv" ]; then
+    echo -e "${YELLOW}Virtual environment directory exists but is missing activation script. Recreating...${NC}"
+    rm -rf venv
+    python3 -m venv venv
+    echo -e "${GREEN}✓ Virtual environment created${NC}"
 else
     python3 -m venv venv
     echo -e "${GREEN}✓ Virtual environment created${NC}"
@@ -41,23 +107,63 @@ fi
 
 # Activate virtual environment
 echo -e "\n${YELLOW}Activating virtual environment...${NC}"
-source venv/bin/activate
-echo -e "${GREEN}✓ Virtual environment activated${NC}"
+if [ -f "venv/bin/activate" ]; then
+    # shellcheck disable=SC1091
+    . venv/bin/activate
+    echo -e "${GREEN}✓ Virtual environment activated${NC}"
+else
+    echo -e "${RED}✗ Failed to activate virtual environment (venv/bin/activate missing)${NC}"
+    echo -e "${YELLOW}! Recreate venv or check permissions${NC}"
+    exit 1
+fi
 
 # Install dependencies
 echo -e "\n${YELLOW}Installing dependencies...${NC}"
-pip install -r requirements.txt
-echo -e "${GREEN}✓ Dependencies installed${NC}"
+python3 -m pip install --upgrade pip
+if ! python3 -m pip install -r requirements.txt; then
+    echo -e "${YELLOW}! Some dependencies failed to install. Attempting fallbacks where possible.${NC}"
+fi
+echo -e "${GREEN}✓ Dependencies install step completed${NC}"
+
+# Verify database connection after installing dependencies
+if [ -f ".env" ]; then
+    echo -e "\n${YELLOW}Verifying database connection with installed dependencies...${NC}"
+    export $(grep -v '^#' .env | grep DATABASE_URL | xargs)
+
+    # Ensure psycopg2 is available; if not, install psycopg2-binary
+    python3 -c "import importlib.util, sys; sys.exit(0) if importlib.util.find_spec('psycopg2') else sys.exit(2)"
+    if [ $? -eq 2 ]; then
+        echo -e "${YELLOW}psycopg2 not found; installing psycopg2-binary...${NC}"
+        python3 -m pip install psycopg2-binary
+    fi
+
+    # Verify actual connection
+    python3 -c "
+import sys
+try:
+    import psycopg2
+    conn = psycopg2.connect('$DATABASE_URL')
+    conn.close()
+    print('✓ Database connection verified successfully')
+    sys.exit(0)
+except Exception as e:
+    print(f'✗ Failed to connect to PostgreSQL: {e}')
+    print('! Please verify your DATABASE_URL in .env file')
+    print('! Ensure the remote PostgreSQL server is accessible')
+    sys.exit(1)
+" || exit 1
+fi
 
 # Check for .env file
-echo -e "\n${YELLOW}Checking for .env file...${NC}"
+echo -e "\n${YELLOW}Checking .env configuration...${NC}"
 if [ -f ".env" ]; then
-    echo -e "${GREEN}✓ .env file exists${NC}"
+    echo -e "${GREEN}✓ .env file is configured${NC}"
 else
     echo -e "${YELLOW}Creating sample .env file...${NC}"
     cat > .env << EOF
 # Database Configuration
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/gst_billing_db
+# Update this with your remote PostgreSQL server details
+DATABASE_URL=postgresql://username:password@your-db-host:5432/database_name
 
 # Session Secret (generate a random string - required for authentication)
 SESSION_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
@@ -67,29 +173,12 @@ FLASK_ENV=development
 FLASK_DEBUG=True
 EOF
     echo -e "${GREEN}✓ Sample .env file created${NC}"
-    echo -e "${YELLOW}! Please edit the .env file with your actual database credentials${NC}"
+    echo -e "${RED}!!! IMPORTANT: Edit the .env file with your remote PostgreSQL server credentials !!!${NC}"
+    echo -e "${YELLOW}! Update DATABASE_URL with: postgresql://user:password@host:port/database${NC}"
+    exit 1
 fi
 
-# Ask if user wants to create the database
-echo -e "\n${YELLOW}Do you want to create the PostgreSQL database? (y/n)${NC}"
-read -r create_db
-if [[ $create_db =~ ^[Yy]$ ]]; then
-    echo -e "\n${YELLOW}Enter database name (default: gst_billing_db):${NC}"
-    read -r db_name
-    db_name=${db_name:-gst_billing_db}
-    
-    echo -e "\n${YELLOW}Creating database $db_name...${NC}"
-    if createdb "$db_name"; then
-        echo -e "${GREEN}✓ Database $db_name created${NC}"
-        
-        # Update .env file with the correct database name
-        sed -i.bak "s/gst_billing_db/$db_name/g" .env
-        rm .env.bak
-    else
-        echo -e "${RED}✗ Failed to create database $db_name${NC}"
-        echo -e "${YELLOW}! You'll need to create the database manually${NC}"
-    fi
-fi
+# Skip local database creation since using remote PostgreSQL
 
 # Ask about database operations
 echo -e "\n${YELLOW}Database Operations:${NC}"
@@ -103,7 +192,7 @@ read -r db_operation
 case $db_operation in
     1)
         echo -e "\n${YELLOW}Initializing database...${NC}"
-        python3 db_manage.py init
+        venv/bin/python db_manage.py init
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}✓ Database initialized successfully${NC}"
         else
@@ -117,7 +206,7 @@ case $db_operation in
         read -r confirm_reset
         if [[ $confirm_reset =~ ^[Yy]$ ]]; then
             echo -e "\n${YELLOW}Resetting database...${NC}"
-            python3 db_manage.py reset
+            venv/bin/python db_manage.py reset
             if [ $? -eq 0 ]; then
                 echo -e "${GREEN}✓ Database reset successfully${NC}"
             else
@@ -130,7 +219,7 @@ case $db_operation in
         ;;
     3)
         echo -e "\n${YELLOW}Upgrading database...${NC}"
-        python3 db_manage.py upgrade
+        venv/bin/python db_manage.py upgrade
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}✓ Database upgraded successfully${NC}"
         else

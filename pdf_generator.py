@@ -98,6 +98,19 @@ def generate_invoice_pdf(bill, company):
     header_style.fontName = 'DejaVuSans'
     normal_style.fontName = 'DejaVuSans'
     
+    # Add company logo if available
+    if company.logo_path:
+        logo_path = os.path.join('uploads', company.logo_path)
+        if os.path.exists(logo_path):
+            try:
+                # Create logo image with reasonable size
+                logo = Image(logo_path, width=2*inch, height=1*inch, kind='proportional')
+                logo.hAlign = 'CENTER'
+                story.append(logo)
+                story.append(Spacer(1, 10))
+            except Exception as e:
+                print(f"Error loading logo: {e}")
+    
     # Title
     story.append(Paragraph("TAX INVOICE", title_style))
     story.append(Spacer(1, 20))
